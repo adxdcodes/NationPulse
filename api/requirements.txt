@@ -1,0 +1,37 @@
+# Combined dependencies for ALL FOUR backend services (ingestion,
+# pdf-pipeline, ai-pipeline, api), for local development in one shared venv.
+#
+# This is a LOCAL-DEV convenience, not what you'd deploy with. In
+# production, keep using each service's own requirements.txt (still
+# present in services/*/requirements.txt) so e.g. the api container isn't
+# also pulling in pdfplumber/PyMuPDF/pytesseract, and the ingestion
+# container isn't pulling in fastapi/uvicorn. Nothing here conflicts
+# between services — the shared packages below (httpx, psycopg2-binary,
+# python-dotenv) were already pinned to the same version in every
+# service — but bundling them is still extra weight you don't want in a
+# slim per-service container image later.
+#
+# Build the venv from this file (see RUNBOOK.md):
+#   python3 -m venv .venv && .venv/bin/pip install -r api/requirements.txt
+
+# --- shared by all four services ---
+httpx==0.27.2
+psycopg2-binary==2.9.10
+python-dotenv==1.0.1
+
+# --- pdf-pipeline-specific ---
+pdfplumber==0.11.4
+PyMuPDF==1.24.11
+pytesseract==0.3.13
+pdf2image==1.17.0
+boto3==1.35.36
+
+# --- ai-pipeline-specific ---
+jsonschema==4.23.0
+
+# --- api-specific ---
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+pyjwt==2.10.1
+bcrypt==4.2.1
+pydantic[email]==2.9.2
