@@ -41,7 +41,7 @@ def generate_with_retry(provider, system_prompt, user_prompt, schema):
     raise last_error
 
 
-def process_one(bill_id: int, providers: list, prompt: str | None = None) -> tuple[bool, str]:
+def process_one(bill_id: int, providers: list, prompt: str | None = None, document_id: int | None = None) -> tuple[bool, str]:
     primary_provider = providers[0]
     with db.get_conn() as conn:
         row_id = db.reserve_generation(conn, bill_id, primary_provider.name, primary_provider.model)
@@ -50,7 +50,7 @@ def process_one(bill_id: int, providers: list, prompt: str | None = None) -> tup
 
     try:
         with db.get_conn() as conn:
-            bill = db.get_bill_with_texts(conn, bill_id)
+            bill = db.get_bill_with_texts(conn, bill_id, document_id=document_id)
         if not bill:
             with db.get_conn() as conn:
                 db.save_failure(conn, row_id, "No extracted text available for this bill.")
@@ -127,7 +127,7 @@ def process_one(bill_id: int, providers: list, prompt: str | None = None) -> tup
 
 
 def run_batch(limit: int, provider_name: str, model: str, bill_id: int | None = None,
-              prompt: str | None = None) -> int:
+              prompt: str | None = None, document_id: int | None = None) -> int:
     if provider_name not in (None, "gemini"):
         raise ValueError("This free-tier scheduler supports Gemini only")
     if model:
@@ -159,7 +159,7 @@ def run_batch(limit: int, provider_name: str, model: str, bill_id: int | None = 
     log.info("Found %d candidate bill(s). Model order: %s.", len(bill_ids), ", ".join(model_names))
     ok, failed = 0, 0
     for bid in bill_ids:
-        success, message = process_one(bid, providers, prompt=prompt)
+        success, message = process_one(bid, providers, prompt=prompt, document_id=document_id)
         (log.info if success else log.warning)(message)
         ok += success
         failed += not success
@@ -176,6 +176,7 @@ def main():
     parser.add_argument("--limit", type=int, default=20)
     parser.add_argument("--loop", action="store_true")
     parser.add_argument("--interval", type=int, default=600)
+    parser.add_argument("--document-id", type=int, default=None, help="Generate from exactly this extracted document")
     parser.add_argument("--bill-id", type=int, default=None,
                          help="Scope to exactly one bill (used by admin-triggered jobs)")
     parser.add_argument("--job-id", type=int, default=None,
@@ -185,7 +186,7 @@ def main():
     args = parser.parse_args()
 
     if args.bill_id is not None:
-        run_batch(args.limit, args.provider, args.model, bill_id=args.bill_id, prompt=args.prompt)
+        run_batch(args.limit, args.provider, args.model, bill_id=args.bill_id, prompt=args.prompt, document_id=args.document_id)
         return
 
     if args.loop:

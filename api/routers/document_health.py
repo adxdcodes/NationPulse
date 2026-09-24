@@ -34,14 +34,14 @@ def verify_url(url):
                 length=int(resp.headers["content-length"]) if resp.headers.get("content-length","").isdigit() else None
                 if code in (301,302,303,307,308) and resp.headers.get("location"):
                     current=str(resp.url.join(resp.headers["location"]));continue
-                if method=="HEAD" and (code in (405,501) or (code<400 and "pdf" not in ct.lower())):
+                if method=="HEAD" and (code in (405,501) or (code<400 and not any(x in ct.lower() for x in ("pdf", "msword", "wordprocessingml")))):
                     method="GET";continue
                 if code in (401,403):status="blocked"
                 elif code==429:status="rate_limited"
                 elif code in (404,410):status="broken"
                 elif code>=500:status="server_error"
                 elif code>=400:status="unknown"
-                elif "pdf" in ct.lower() or (method=="GET" and resp.content.startswith(b"%PDF-")):status="available"
+                elif any(x in ct.lower() for x in ("pdf", "msword", "wordprocessingml")) or (method=="GET" and (resp.content.startswith(b"%PDF-") or resp.content.startswith(b"PK\x03\x04") or resp.content.startswith(bytes.fromhex("d0cf11e0a1b11ae1")))):status="available"
                 else:status="invalid_content"
                 return dict(link_status=status,http_status_code=code,request_method=method,content_type=ct,
                             content_length=length,final_url=final,latency_ms=int((time.monotonic()-start)*1000),error_message=None)

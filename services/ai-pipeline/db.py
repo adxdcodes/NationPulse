@@ -58,7 +58,7 @@ def find_candidate_bills(conn, limit: int, bill_id: int | None = None):
         return [row["bill_id"] for row in cur.fetchall()]
 
 
-def get_bill_with_texts(conn, bill_id: int):
+def get_bill_with_texts(conn, bill_id: int, document_id: int | None = None):
     """Returns bill metadata plus the primary (most authoritative) extracted
     text and, separately, the 'introduced' text if it differs — used to
     build the before/after comparison in the prompt."""
@@ -75,15 +75,20 @@ def get_bill_with_texts(conn, bill_id: int):
         cur.execute("""
             SELECT id, doc_type, extracted_text
             FROM bill_documents
-            WHERE bill_id = %s AND extraction_status = 'done' AND extracted_text IS NOT NULL
+            WHERE bill_id = %s AND extraction_status = 'done' AND length(trim(coalesce(extracted_text, ''))) > 0
         """, (bill_id,))
-        docs = {row["doc_type"]: row for row in cur.fetchall()}
-
-        if not docs:
+        document_rows = cur.fetchall()
+        if not document_rows:
             return None
-
-        primary_type = next((t for t in PRIMARY_DOC_PRIORITY if t in docs), None)
-        primary = docs[primary_type]
+        docs = {row["doc_type"]: row for row in document_rows}
+        if document_id is not None:
+            primary = next((d for d in document_rows if d["id"] == document_id), None)
+            if primary is None:
+                return None
+            primary_type = primary["doc_type"]
+        else:
+            primary_type = next((t for t in PRIMARY_DOC_PRIORITY if t in docs), None) or next(iter(docs))
+            primary = docs[primary_type]
         introduced = docs.get("introduced")
 
         bill["primary_doc_id"] = primary["id"]

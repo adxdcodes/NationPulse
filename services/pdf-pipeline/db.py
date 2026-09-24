@@ -24,7 +24,7 @@ def get_conn():
         conn.close()
 
 
-def claim_pending_documents(conn, limit: int, doc_type: str | None = None, force: bool = False, bill_id: int | None = None):
+def claim_pending_documents(conn, limit: int, doc_type: str | None = None, force: bool = False, bill_id: int | None = None, document_id: int | None = None):
     """Atomically claims up to `limit` documents for processing by flipping
     their status to 'downloading', and returns the joined bill+document rows
     needed to process them. Safe to call from multiple workers at once.
@@ -32,13 +32,14 @@ def claim_pending_documents(conn, limit: int, doc_type: str | None = None, force
     status_filter = "TRUE" if force else "bd.extraction_status IN ('pending', 'failed')"
     type_filter = "AND bd.doc_type = %(doc_type)s" if doc_type else ""
     bill_filter = "AND bd.bill_id = %(bill_id)s" if bill_id is not None else ""
+    doc_filter = "AND bd.id = %(document_id)s" if document_id is not None else ""
 
     with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
         cur.execute(f"""
             WITH claimed AS (
                 SELECT bd.id
                 FROM bill_documents bd
-                WHERE {status_filter} {type_filter} {bill_filter}
+                WHERE {status_filter} {type_filter} {bill_filter} {doc_filter}
                 ORDER BY bd.id
                 LIMIT %(limit)s
                 FOR UPDATE OF bd SKIP LOCKED
@@ -48,7 +49,7 @@ def claim_pending_documents(conn, limit: int, doc_type: str | None = None, force
             FROM claimed
             WHERE bd.id = claimed.id
             RETURNING bd.id, bd.bill_id, bd.doc_type, bd.source_url, bd.download_attempts
-        """, {"limit": limit, "doc_type": doc_type, "bill_id": bill_id})
+        """, {"limit": limit, "doc_type": doc_type, "bill_id": bill_id, "document_id": document_id})
         claimed = cur.fetchall()
 
         if not claimed:
@@ -72,7 +73,7 @@ def mark_extracting(conn, doc_id: int):
 
 def mark_success(conn, doc_id: int, *, storage_path: str, file_hash: str, file_size_bytes: int,
                   extracted_text: str, extraction_method: str, page_count: int, no_text_layer: bool = False):
-    status = "no_text_layer" if no_text_layer else "done"
+    status = "done"  # OCR success is still a successful extraction
     with conn.cursor() as cur:
         cur.execute("""
             UPDATE bill_documents

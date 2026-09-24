@@ -89,7 +89,7 @@ def _watch_proc(job_id: int, proc: subprocess.Popen):
         _mark_job_finished(job_id, "failed", f"Process exited with code {returncode}. See job_{job_id}.log.")
 
 
-def _spawn(job_id: int, bill_id: int, job_type: str):
+def _spawn(job_id: int, bill_id: int, job_type: str, document_id: int | None = None):
     if job_type == "pdf_extract":
         cwd = config.PDF_PIPELINE_DIR
         cmd = [sys.executable, "pipeline.py", "--bill-id", str(bill_id), "--limit", "50"]
@@ -97,6 +97,9 @@ def _spawn(job_id: int, bill_id: int, job_type: str):
         cwd = config.AI_PIPELINE_DIR
         cmd = [sys.executable, "pipeline.py", "--bill-id", str(bill_id),
                "--limit", "1", "--provider", config.AI_PROVIDER]
+
+    if document_id is not None:
+        cmd.extend(["--document-id", str(document_id)])
 
     log_dir = Path(os.getenv("NATIONPULSE_LOG_DIR", str(Path(__file__).resolve().parents[2] / "logs"))).resolve() / "jobs"
     log_dir.mkdir(parents=True, exist_ok=True)
@@ -131,7 +134,7 @@ def _spawn(job_id: int, bill_id: int, job_type: str):
     return proc.pid
 
 
-def _spawn_or_fail(conn, job_id: int, bill_id: int, job_type: str):
+def _spawn_or_fail(conn, job_id: int, bill_id: int, job_type: str, document_id: int | None = None):
     """Spawns the subprocess; if launching it fails for any reason (bad
     cwd, missing interpreter, permissions — before it's even running, so
     the watcher thread was never started), marks the job 'failed'
@@ -140,7 +143,7 @@ def _spawn_or_fail(conn, job_id: int, bill_id: int, job_type: str):
     via the partial unique index.
     """
     try:
-        _spawn(job_id, bill_id, job_type)
+        _spawn(job_id, bill_id, job_type, document_id=document_id)
     except Exception as e:
         with conn.cursor() as cur:
             cur.execute(
@@ -152,12 +155,17 @@ def _spawn_or_fail(conn, job_id: int, bill_id: int, job_type: str):
 
 
 @router.post("/bills/{bill_id}/process/pdf", status_code=202)
-def process_pdf(bill_id: int, admin: dict = Depends(require_admin), conn=Depends(get_conn)):
+def process_pdf(bill_id: int, document_id: int | None = Query(default=None, gt=0), admin: dict = Depends(require_admin), conn=Depends(get_conn)):
     with conn.cursor() as cur:
         cur.execute("SELECT 1 FROM bills WHERE id = %s", (bill_id,))
         if not cur.fetchone():
             raise HTTPException(status_code=404, detail="Bill not found.")
 
+    if document_id is not None:
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1 FROM bill_documents WHERE id = %s AND bill_id = %s", (document_id, bill_id))
+            if not cur.fetchone():
+                raise HTTPException(status_code=404, detail="Document not found for this bill")
     job_id = _create_job_row(conn, bill_id, "pdf_extract", admin["id"])
     if job_id is None:
         raise HTTPException(status_code=409, detail="A PDF extraction job is already queued or running for this bill.")
@@ -166,24 +174,31 @@ def process_pdf(bill_id: int, admin: dict = Depends(require_admin), conn=Depends
     # connections — this row must be visible to them, so commit now rather
     # than waiting for the request to finish.
     conn.commit()
-    _spawn_or_fail(conn, job_id, bill_id, "pdf_extract")
-    return {"jobId": job_id, "billId": bill_id, "jobType": "pdf_extract", "status": "queued"}
+    _spawn_or_fail(conn, job_id, bill_id, "pdf_extract", document_id=document_id)
+    return {"jobId": job_id, "billId": bill_id, "jobType": "pdf_extract", "documentId": document_id, "status": "queued"}
 
 
 @router.post("/bills/{bill_id}/process/ai", status_code=202)
-def process_ai(bill_id: int, admin: dict = Depends(require_admin), conn=Depends(get_conn)):
+def process_ai(bill_id: int, document_id: int | None = Query(default=None, gt=0), admin: dict = Depends(require_admin), conn=Depends(get_conn)):
     with conn.cursor() as cur:
         cur.execute("SELECT 1 FROM bills WHERE id = %s", (bill_id,))
         if not cur.fetchone():
             raise HTTPException(status_code=404, detail="Bill not found.")
 
+    with conn.cursor() as cur:
+        cur.execute("""SELECT id FROM bill_documents WHERE bill_id = %s
+            AND extraction_status = 'done' AND length(trim(coalesce(extracted_text, ''))) > 0
+            AND (%s::bigint IS NULL OR id = %s) ORDER BY id LIMIT 1""",
+            (bill_id, document_id, document_id))
+        if not cur.fetchone():
+            raise HTTPException(status_code=409, detail="Selected document has no successfully extracted text")
     job_id = _create_job_row(conn, bill_id, "ai_summarize", admin["id"])
     if job_id is None:
         raise HTTPException(status_code=409, detail="An AI summarization job is already queued or running for this bill.")
 
     conn.commit()
-    _spawn_or_fail(conn, job_id, bill_id, "ai_summarize")
-    return {"jobId": job_id, "billId": bill_id, "jobType": "ai_summarize", "status": "queued"}
+    _spawn_or_fail(conn, job_id, bill_id, "ai_summarize", document_id=document_id)
+    return {"jobId": job_id, "billId": bill_id, "jobType": "ai_summarize", "documentId": document_id, "status": "queued"}
 
 
 @router.post("/jobs/{job_id}/cancel")
@@ -259,7 +274,7 @@ def bill_jobs(bill_id: int, admin: dict = Depends(require_admin), conn=Depends(g
         ]
 
         cur.execute("""
-            SELECT id, review_status, provider, model_version, generated_at, error_message
+            SELECT id, source_doc_id, review_status, provider, model_version, generated_at, error_message
             FROM bill_ai_content WHERE bill_id = %s ORDER BY generated_at DESC LIMIT 5
         """, (bill_id,))
         ai_content = cur.fetchall()

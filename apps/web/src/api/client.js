@@ -68,8 +68,8 @@ export const api = {
   adminDashboard: (token) => request("/admin/dashboard", { token }),
 
   // --- admin: bill processing (selective, cancellable) ---
-  processPdf: (token, billId) => request(`/admin/bills/${billId}/process/pdf`, { method: "POST", token }),
-  processAi: (token, billId) => request(`/admin/bills/${billId}/process/ai`, { method: "POST", token }),
+  processPdf: (token, billId, documentId) => request(`/admin/bills/${billId}/process/pdf${documentId ? `?document_id=${documentId}` : ""}`, { method: "POST", token }),
+  processAi: (token, billId, documentId) => request(`/admin/bills/${billId}/process/ai${documentId ? `?document_id=${documentId}` : ""}`, { method: "POST", token }),
   cancelJob: (token, jobId) => request(`/admin/jobs/${jobId}/cancel`, { method: "POST", token }),
   billJobs: (token, billId) => request(`/admin/bills/${billId}/jobs`, { token }),
   listJobs: (token, status) => request("/admin/jobs", { token, params: { status } }),

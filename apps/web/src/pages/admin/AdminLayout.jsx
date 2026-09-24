@@ -154,7 +154,7 @@ function BillRow({ bill, t, dark, runningJobs, onProcess, onCancel, busy, select
 
   const docsDone = bill.documents_extracted === bill.document_count && bill.document_count > 0;
   const canProcessPdf = bill.document_count > 0 && !docsDone && !pdfRunning;
-  const canProcessAi = docsDone && !["generating", "pending_review", "approved"].includes(bill.ai_status) && !aiRunning;
+  const canProcessAi = bill.documents_extracted > 0 && !["generating", "pending_review", "approved"].includes(bill.ai_status) && !aiRunning;
 
   async function toggleExpand() {
     setExpanded(e => !e);
@@ -195,7 +195,7 @@ function BillRow({ bill, t, dark, runningJobs, onProcess, onCancel, busy, select
 
         <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 130 }}>
           <FileText size={12} color={t.textMuted} />
-          <span style={{ fontSize: 11, color: t.textMuted }}>{bill.documents_extracted}/{bill.document_count} PDFs · {bill.available_links || 0} available · {bill.broken_links || 0} broken</span>
+          <span style={{ fontSize: 11, color: t.textMuted }}>{bill.documents_extracted}/{bill.document_count} documents · {bill.available_links || 0} available · {bill.broken_links || 0} broken</span>
           {pdfRunning && <JobPill status="running" dark={dark} />}
         </div>
 
@@ -215,7 +215,7 @@ function BillRow({ bill, t, dark, runningJobs, onProcess, onCancel, busy, select
           ) : (
             <button onClick={() => onProcess(bill.id, "pdf")} disabled={busy || !canProcessPdf}
               style={{ padding: "6px 12px", background: canProcessPdf ? (dark ? "#0C1B3A" : "#EFF6FF") : t.surface2, color: canProcessPdf ? (dark ? "#93C5FD" : "#1D4ED8") : t.textMuted, border: "none", borderRadius: 7, fontSize: 11, fontWeight: 600, cursor: canProcessPdf ? "pointer" : "default", opacity: canProcessPdf ? 1 : 0.6, display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit" }}>
-              <FileText size={11} />{docsDone ? "Extracted" : "Process PDF"}
+              <FileText size={11} />{docsDone ? "Extracted" : "Process documents"}
             </button>
           )}
           {aiRunning ? (
@@ -258,10 +258,22 @@ function BillRow({ bill, t, dark, runningJobs, onProcess, onCancel, busy, select
                   {linkResults[doc.id]?.error_message && <span title={linkResults[doc.id].error_message}>Check error</span>}
                   {doc.errorMessage && <span style={{ color: t.danger }}>{doc.errorMessage}</span>}
                   <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+                    {doc.extractionStatus !== "done" && !pdfRunning && (
+                      <button disabled={busy} onClick={() => onProcess(bill.id, "pdf", doc.id)}
+                        style={{padding:"3px 9px", border:`1px solid ${t.border}`, borderRadius:7, background:t.surface, color:t.text, cursor:"pointer"}}>
+                        Extract this document
+                      </button>
+                    )}
+                    {doc.extractionStatus === "done" && !aiRunning && (
+                      <button disabled={busy} onClick={() => onProcess(bill.id, "ai", doc.id)}
+                        style={{padding:"3px 9px", border:"none", borderRadius:7, background:"#16A34A", color:"white", cursor:"pointer"}}>
+                        <Sparkles size={10}/> Generate from this document
+                      </button>
+                    )}
                     {doc.sourceUrl && (
                       <a href={doc.sourceUrl} target="_blank" rel="noreferrer"
                         style={{ padding: "3px 9px", background: "none", border: `1px solid ${t.border}`, color: t.textSub, borderRadius: 6, fontSize: 10, fontWeight: 600, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4 }}>
-                        <ExternalLink size={10} />Source PDF
+                        <ExternalLink size={10} />Source document
                       </a>
                     )}
                     {doc.extractedTextUrl && (
@@ -435,10 +447,10 @@ function BillManager({ t, dark, mode }) {
     setSelectedIds(prev => (prev.size === items.length ? new Set() : new Set(items.map(b => b.id))));
   }
 
-  async function handleProcess(billId, stage) {
+  async function handleProcess(billId, stage, documentId = null) {
     setBusy(true); setActionError("");
     try {
-      await (stage === "pdf" ? api.processPdf(token, billId) : api.processAi(token, billId));
+      await (stage === "pdf" ? api.processPdf(token, billId, documentId) : api.processAi(token, billId, documentId));
       await Promise.all([refreshEntities(), refreshJobs()]);
     } catch (e) {
       setActionError(e instanceof ApiError ? e.message : "Failed to start processing.");
@@ -476,7 +488,7 @@ function BillManager({ t, dark, mode }) {
       const docsDone = bill.documents_extracted === bill.document_count && bill.document_count > 0;
       const eligible = stage === "pdf"
         ? bill.document_count > 0 && !docsDone
-        : docsDone && !["generating", "pending_review", "approved"].includes(bill.ai_status);
+        : bill.documents_extracted > 0 && !["generating", "pending_review", "approved"].includes(bill.ai_status);
       if (!eligible) { skipped++; continue; }
       try {
         await (stage === "pdf" ? api.processPdf(token, bill.id) : api.processAi(token, bill.id));

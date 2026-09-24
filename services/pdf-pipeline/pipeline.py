@@ -15,7 +15,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import config
 import db
-from downloader import download_pdf, DownloadError
+from downloader import download_document, DownloadError
+from word_extractor import extract_word
 from extractor import extract_text
 from storage import get_storage, build_key, sha256_bytes
 
@@ -27,7 +28,7 @@ def process_one(row: dict, storage):
     doc_id = row["doc_id"]
 
     try:
-        pdf_bytes = download_pdf(row["source_url"])
+        document_bytes, kind = download_document(row["source_url"])
     except DownloadError as e:
         with db.get_conn() as conn:
             db.mark_failed(conn, doc_id, str(e))
@@ -37,17 +38,17 @@ def process_one(row: dict, storage):
     with db.get_conn() as conn:
         db.mark_extracting(conn, doc_id)
 
-    file_hash = sha256_bytes(pdf_bytes)
+    file_hash = sha256_bytes(document_bytes)
 
     raw_key = build_key(
         bill_year=row["bill_year"], introduced_house=row["introduced_house"],
         bill_number=row["bill_number"], doc_type=row["doc_type"],
-        file_hash=file_hash, ext="pdf",
+        file_hash=file_hash, ext=kind,
     )
-    raw_path = storage.save("raw", raw_key, pdf_bytes)
+    raw_path = storage.save("raw", raw_key, document_bytes)
 
     try:
-        result = extract_text(pdf_bytes)
+        result = extract_text(document_bytes) if kind == "pdf" else extract_word(document_bytes, kind)
     except Exception as e:
         with db.get_conn() as conn:
             db.mark_failed(conn, doc_id, f"extraction crashed: {e}")
@@ -63,7 +64,7 @@ def process_one(row: dict, storage):
     with db.get_conn() as conn:
         db.mark_success(
             conn, doc_id,
-            storage_path=raw_path, file_hash=file_hash, file_size_bytes=len(pdf_bytes),
+            storage_path=raw_path, file_hash=file_hash, file_size_bytes=len(document_bytes),
             extracted_text=result.text, extraction_method=result.method,
             page_count=result.page_count, no_text_layer=result.no_text_layer,
         )
@@ -72,10 +73,10 @@ def process_one(row: dict, storage):
     return doc_id, True, f"{row['bill_number']} / {row['doc_type']} -> {result.method}, {len(result.text)} chars{flag}"
 
 
-def run_batch(limit: int, doc_type: str | None, force: bool, workers: int, bill_id: int | None = None) -> int:
+def run_batch(limit: int, doc_type: str | None, force: bool, workers: int, bill_id: int | None = None, document_id: int | None = None) -> int:
     storage = get_storage()
     with db.get_conn() as conn:
-        rows = db.claim_pending_documents(conn, limit=limit, doc_type=doc_type, force=force, bill_id=bill_id)
+        rows = db.claim_pending_documents(conn, limit=limit, doc_type=doc_type, force=force, bill_id=bill_id, document_id=document_id)
 
     if not rows:
         log.info("No pending documents to process.")
@@ -107,6 +108,7 @@ def main():
     parser.add_argument("--force", action="store_true", help="Re-process even already-done documents")
     parser.add_argument("--loop", action="store_true", help="Run continuously instead of once")
     parser.add_argument("--interval", type=int, default=300, help="Seconds between polls when --loop")
+    parser.add_argument("--document-id", type=int, default=None, help="Process only this document ID")
     parser.add_argument("--bill-id", type=int, default=None, help="Process only this bill_id")
     parser.add_argument("--job-id", type=int, default=None, help="Admin job id for tracking")
     args = parser.parse_args()
@@ -117,7 +119,7 @@ def main():
             args.doc_type,
             args.force,
             args.workers,
-            bill_id=args.bill_id
+            bill_id=args.bill_id, document_id=args.document_id
         )
 
         if processed == 0:

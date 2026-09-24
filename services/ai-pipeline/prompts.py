@@ -24,11 +24,11 @@ BILL_SUMMARY_SCHEMA = {
         },
         "summary": {
             "type": "string",
-            "description": "2-4 sentences, plain language, describing what the bill actually does. No legalese, no editorializing.",
+            "description": "2-6 sentences, plain language, describing what the bill actually does. No legalese, no editorializing.",
         },
         "why_it_matters": {
             "type": "string",
-            "description": "1-3 sentences, concrete and specific, explaining how this could affect an ordinary citizen. Avoid vague statements like 'this could impact many people.'",
+            "description": "1-5 sentences, concrete and specific, explaining how this could affect an ordinary citizen. Avoid vague statements like 'this could impact many people.'",
         },
         "topic": {
             "type": "string",
