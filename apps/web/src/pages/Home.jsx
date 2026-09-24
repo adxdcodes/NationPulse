@@ -1,28 +1,31 @@
 import { useState, useEffect, useMemo } from "react";
-import { EVENTS, DOMAINS, TOPICS, STATUSES } from "../data/mockData.js";
+import FeedChatbot from "../components/FeedChatbot.jsx";
+import { api } from "../api/client.js";
+import { useLive, LiveError } from "../api/useLive.jsx";
+const DOMAINS=["All","Parliament"], STATUSES=["All","Introduced","In Committee","Passed","Enacted","Withdrawn"];
 import { DOMAIN_META } from "../context/ThemeContext.jsx";
 import { FilterBar, UniversalCard, SkeletonCard, EmptyState, Footer } from "../components/UI.jsx";
 
 export default function Home({ dark, t }) {
   const [filters, setFilters] = useState({ domain: "All", topic: "All", status: "All" });
-  const [loading, setLoading] = useState(true);
-  useEffect(() => { const id = setTimeout(() => setLoading(false), 700); return () => clearTimeout(id); }, []);
+  const {data,loading,error}=useLive(()=>Promise.all([api.listBills({page_size:100,...filters}),api.listTopics()]),[filters.domain,filters.topic,filters.status]);
+  const EVENTS=useMemo(() => data?.[0]?.items || [], [data]); const TOPICS=["All",...(data?.[1]?.items||[]).map(x=>x.name)];
 
   const filtered = useMemo(() => EVENTS.filter(ev => {
     if (filters.domain !== "All" && ev.domain !== filters.domain) return false;
     if (filters.topic !== "All" && ev.topic !== filters.topic) return false;
     if (filters.status !== "All" && ev.status !== filters.status) return false;
     return true;
-  }), [filters]);
+  }), [EVENTS, filters]);
 
   return (
-    <div>
+    <div className="np-feed-page">
       <FilterBar filters={filters} setFilters={setFilters} t={t} domains={DOMAINS} topics={TOPICS} statuses={STATUSES} />
-      <div style={{ background: t.topbar, borderBottom: `1px solid ${t.topbarBorder}`, padding: "20px 20px" }}>
+      <div className="np-feed-hero" style={{ background: t.topbar, borderBottom: `1px solid ${t.topbarBorder}`, padding: "20px 20px" }}>
         <div style={{ maxWidth: 860, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 14 }}>
           <div>
-            <h2 style={{ margin: "0 0 4px 0", color: "#fff", fontSize: 18, fontWeight: 700 }}>Government activity feed</h2>
-            <p style={{ margin: 0, fontSize: 12, color: "rgba(255,255,255,0.5)" }}>{filtered.length} updates · sorted by most recent · Parliament, Executive, Budget and Judiciary</p>
+            <h2 style={{ margin: "0 0 4px 0", color: "#fff", fontSize: 18, fontWeight: 700 }}>Your Parliament, clearly explained</h2>
+            <p style={{ margin: 0, fontSize: 12, color: "rgba(255,255,255,0.5)" }}>{filtered.length} updates · sorted by most recent · Explore bills and parliamentary updates</p>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {Object.entries(DOMAIN_META).map(([d, m]) => {
@@ -37,12 +40,13 @@ export default function Home({ dark, t }) {
           </div>
         </div>
       </div>
-      <div style={{ maxWidth: 860, margin: "0 auto", padding: "22px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
+      <LiveError error={error}/><div className="np-feed-list" style={{ maxWidth: 860, margin: "0 auto", padding: "22px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
         {loading ? [1, 2, 3].map(i => <SkeletonCard key={i} t={t} />) : !filtered.length ? (
           <EmptyState t={t} actionLabel="Clear filters" onAction={() => setFilters({ domain: "All", topic: "All", status: "All" })} />
         ) : filtered.map(ev => <UniversalCard key={ev.id} ev={ev} dark={dark} t={t} />)}
       </div>
       <Footer t={t} />
+      <FeedChatbot dark={dark} />
     </div>
   );
 }

@@ -84,7 +84,7 @@ def _watch_proc(job_id: int, proc: subprocess.Popen):
     way it could never have self-reported (see module docstring)."""
     returncode = proc.wait()
     if returncode == 0:
-        _mark_job_finished(job_id, "done")
+        _mark_job_finished(job_id, "completed")
     else:
         _mark_job_finished(job_id, "failed", f"Process exited with code {returncode}. See job_{job_id}.log.")
 
@@ -98,7 +98,9 @@ def _spawn(job_id: int, bill_id: int, job_type: str):
         cmd = [sys.executable, "pipeline.py", "--bill-id", str(bill_id),
                "--limit", "1", "--provider", config.AI_PROVIDER]
 
-    log_path = Path(cwd) / f"job_{job_id}.log"
+    log_dir = Path(os.getenv("NATIONPULSE_LOG_DIR", str(Path(__file__).resolve().parents[2] / "logs"))).resolve() / "jobs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_path = log_dir / f"job_{job_id}.log"
     logf = open(log_path, "w")
 
     popen_kwargs = {}

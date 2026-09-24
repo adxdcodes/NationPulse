@@ -1,23 +1,19 @@
 import { Link } from "react-router-dom";
 import { Tag, ArrowRight, FileText } from "lucide-react";
-import { EVENTS, TOPIC_INFO } from "../data/mockData.js";
+import {api} from "../api/client.js";
+import {useLive,LiveError} from "../api/useLive.jsx";
 import { DOMAIN_META, FONT_SERIF } from "../context/ThemeContext.jsx";
 import { PageHeader, Footer } from "../components/UI.jsx";
 
 export default function Topics({ dark, t }) {
-  const topics = Object.keys(TOPIC_INFO).map(name => {
-    const events = EVENTS.filter(e => e.topic === name);
-    const domainCounts = {};
-    events.forEach(e => { domainCounts[e.domain] = (domainCounts[e.domain] || 0) + 1; });
-    const topDomain = Object.entries(domainCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
-    return { name, count: events.length, topDomain, latest: events[0] };
-  }).sort((a, b) => b.count - a.count);
+  const {data,error}=useLive(()=>api.listTopics(),[]);
+  const topics=data?.items||[];
 
   return (
     <div>
       <PageHeader t={t} eyebrow="DIRECTORY" IconComp={Tag} title="Browse by topic"
         subtitle="Every bill, scheme, and ruling NationPulse tracks, organised by the policy area it affects." />
-      <div style={{ maxWidth: 1000, margin: "0 auto", padding: "24px 20px" }}>
+      <LiveError error={error}/><div style={{ maxWidth: 1000, margin: "0 auto", padding: "24px 20px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 14 }}>
           {topics.map(topic => {
             const dm = topic.topDomain ? DOMAIN_META[topic.topDomain] : null;
@@ -35,7 +31,7 @@ export default function Topics({ dark, t }) {
                     </span>
                   )}
                 </div>
-                <p style={{ margin: "0 0 14px 0", fontSize: 12.5, color: t.textSub, lineHeight: 1.6, minHeight: 38 }}>{TOPIC_INFO[topic.name].blurb}</p>
+                <p style={{ margin: "0 0 14px 0", fontSize: 12.5, color: t.textSub, lineHeight: 1.6, minHeight: 38 }}>{`${topic.count} approved bills in this topic.`}</p>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 12, borderTop: `1px solid ${t.borderLight}` }}>
                   <span style={{ fontSize: 12, color: t.textMuted, display: "flex", alignItems: "center", gap: 5 }}>
                     <FileText size={12} aria-hidden="true" />{topic.count} tracked

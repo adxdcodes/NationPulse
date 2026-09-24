@@ -1,10 +1,12 @@
 import { useEffect } from "react";
+import {api} from "../api/client.js";
+import {useLive,LiveError} from "../api/useLive.jsx";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import {
   ArrowLeft, Calendar, Tag, Building, FileText, User, BarChart2,
   Route, GitCompare, Database, ExternalLink, Users, ArrowLeftRight,
 } from "lucide-react";
-import { getEventById, getMPById } from "../data/mockData.js";
+
 import { FONT_SERIF } from "../context/ThemeContext.jsx";
 import { DomainBadge, StatusBadge, BillStepper, BudgetBar, DiffTable, Section, Footer, FollowButton } from "../components/UI.jsx";
 import CommentSection from "../components/Comments.jsx";
@@ -13,13 +15,15 @@ import NotFound from "./ErrorPages.jsx";
 export default function EventDetail({ dark, t }) {
   const { id } = useParams();
   const navigate = useNavigate();
-  const ev = getEventById(id);
+  const {data:ev,error,loading}=useLive(()=>api.getBill(id),[id]);
 
   useEffect(() => { window.scrollTo({ top: 0, behavior: "smooth" }); }, [id]);
 
+  if (loading) return <div style={{padding:24}}>Loading bill…</div>;
+  if (error) return <LiveError error={error}/>;
   if (!ev) return <NotFound t={t} />;
 
-  const sponsorMPs = (ev.sponsors || []).map(getMPById).filter(Boolean);
+  const sponsorMPs = ev.sponsors || [];
 
   return (
     <div>

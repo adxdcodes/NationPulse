@@ -1,7 +1,8 @@
 import { useState, useMemo } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Search as SearchIcon } from "lucide-react";
-import { EVENTS } from "../data/mockData.js";
+import { api } from "../api/client.js";
+import {useLive,LiveError} from "../api/useLive.jsx";
 import { UniversalCard, EmptyState, Footer, PageHeader } from "../components/UI.jsx";
 
 function scoreEvent(ev, query) {
@@ -33,12 +34,14 @@ export default function SearchResults({ dark, t }) {
   const query = params.get("q") || "";
   const [draft, setDraft] = useState(query);
 
+  const {data,error,loading}=useLive(()=>query?api.listBills({q:query,page_size:100}):Promise.resolve({items:[]}),[query]);
+  const EVENTS=data?.items||[];
   const ranked = useMemo(() => {
     return EVENTS
       .map(ev => ({ ev, score: scoreEvent(ev, query) }))
       .filter(r => r.score > 0)
       .sort((a, b) => b.score - a.score);
-  }, [query]);
+  }, [query,data]);
 
   function submit(e) {
     e.preventDefault();
@@ -50,7 +53,7 @@ export default function SearchResults({ dark, t }) {
       <PageHeader t={t} eyebrow="SEARCH" IconComp={SearchIcon}
         title={query ? `Results for "${query}"` : "Search NationPulse"}
         subtitle={query ? `${ranked.length} result${ranked.length === 1 ? "" : "s"} ranked by relevance across titles, topics, ministries and summaries.` : "Search across bills, schemes, judgments and budget items."} />
-      <div style={{ maxWidth: 860, margin: "0 auto", padding: "22px 20px" }}>
+      <LiveError error={error}/><div style={{ maxWidth: 860, margin: "0 auto", padding: "22px 20px" }}>
         <form onSubmit={submit} style={{ position: "relative", marginBottom: 20 }}>
           <SearchIcon size={15} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: t.textMuted }} aria-hidden="true" />
           <input value={draft} onChange={e => setDraft(e.target.value)} placeholder="Search bills, schemes, judgments..."

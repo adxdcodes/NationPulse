@@ -11,9 +11,11 @@ import { useAuth } from "../../context/AuthContext.jsx";
 import { api, ApiError } from "../../api/client.js";
 import { FONT_SERIF } from "../../context/ThemeContext.jsx";
 import { DomainBadge, StatusBadge } from "../../components/UI.jsx";
+import { AdminSelect, AdminDatePicker } from "../../components/AdminFilterControls.jsx";
 
 const TABS = [
   { key: "dashboard", label: "Dashboard", Icon: LayoutDashboard },
+  { key: "ingestion", label: "Ingestion", Icon: Database },
   { key: "processing", label: "Bills & Processing", Icon: PlugZap },
   { key: "processed", label: "Processed Bills", Icon: SearchCheck },
   { key: "queue", label: "Review queue", Icon: ListCheck },
@@ -143,6 +145,8 @@ function SortHeader({ label, sortKey, sortBy, sortDir, onSort, t, style }) {
 function BillRow({ bill, t, dark, runningJobs, onProcess, onCancel, busy, selected, onToggleSelect, showPriority }) {
   const [expanded, setExpanded] = useState(false);
   const [history, setHistory] = useState(null);
+  const [checkingId, setCheckingId] = useState(null);
+  const [linkResults, setLinkResults] = useState({});
   const { token } = useAuth();
 
   const pdfRunning = runningJobs.find(j => j.bill_id === bill.id && j.job_type === "pdf_extract");
@@ -170,7 +174,7 @@ function BillRow({ bill, t, dark, runningJobs, onProcess, onCancel, busy, select
         </button>
         <StatusBadge status={bill.status} dark={dark} />
         {showPriority && (
-          <span title="Processing priority score — higher means more worth processing first"
+          <span title="Unprocessed PDF readiness (1 = pending work, 0 = no pending work)"
             style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 28, padding: "2px 7px", borderRadius: 99, fontSize: 10, fontWeight: 800, flexShrink: 0, background: bill.priority_score === 0 ? t.surface2 : t.accentBg, color: bill.priority_score === 0 ? t.textMuted : t.accentText }}>
             {bill.priority_score}
           </span>
@@ -186,12 +190,12 @@ function BillRow({ bill, t, dark, runningJobs, onProcess, onCancel, busy, select
 
         <div style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 100, fontSize: 11, color: t.textMuted }}>
           <Calendar size={11} />
-          {bill.last_seen_at ? new Date(bill.last_seen_at).toLocaleDateString() : "—"}
+          {bill.latest_movement_at ? new Date(bill.latest_movement_at).toLocaleDateString() : "—"}
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 130 }}>
           <FileText size={12} color={t.textMuted} />
-          <span style={{ fontSize: 11, color: t.textMuted }}>{bill.documents_extracted}/{bill.document_count} PDFs</span>
+          <span style={{ fontSize: 11, color: t.textMuted }}>{bill.documents_extracted}/{bill.document_count} PDFs · {bill.available_links || 0} available · {bill.broken_links || 0} broken</span>
           {pdfRunning && <JobPill status="running" dark={dark} />}
         </div>
 
@@ -240,7 +244,18 @@ function BillRow({ bill, t, dark, runningJobs, onProcess, onCancel, busy, select
               {bill.documents.map(doc => (
                 <div key={doc.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: t.textSub, background: t.surface2, borderRadius: 7, padding: "6px 10px", flexWrap: "wrap" }}>
                   <JobPill status={doc.extractionStatus === "done" ? "done" : doc.extractionStatus === "failed" ? "failed" : "queued"} dark={dark} />
-                  <span style={{ fontWeight: 600 }}>{doc.docType}</span>
+                  <span style={{ fontWeight: 600 }}>{doc.docType} · {linkResults[doc.id]?.link_status || doc.linkStatus || "unchecked"}</span>
+                  {(linkResults[doc.id]?.http_status_code || doc.httpStatusCode) && <span>HTTP {linkResults[doc.id]?.http_status_code || doc.httpStatusCode}</span>}
+                  {doc.lastCheckedAt && <span title="Last verified">Checked {new Date(doc.lastCheckedAt).toLocaleString()}</span>}
+                  <button disabled={checkingId === doc.id} onClick={async()=>{
+                    setCheckingId(doc.id);
+                    try { const result=await api.checkDocumentLink(token,doc.id); setLinkResults(prev=>({...prev,[doc.id]:result})); }
+                    catch(e){setLinkResults(prev=>({...prev,[doc.id]:{link_status:"unknown",error_message:e.message}}));}
+                    finally{setCheckingId(null);}
+                  }} style={{padding:"3px 9px",border:`1px solid ${t.border}`,borderRadius:6,background:t.surface,color:t.text,fontSize:10,cursor:"pointer"}}>
+                    {checkingId===doc.id?"Checking…":"Check link"}
+                  </button>
+                  {linkResults[doc.id]?.error_message && <span title={linkResults[doc.id].error_message}>Check error</span>}
                   {doc.errorMessage && <span style={{ color: t.danger }}>{doc.errorMessage}</span>}
                   <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
                     {doc.sourceUrl && (
@@ -291,11 +306,11 @@ function BillRow({ bill, t, dark, runningJobs, onProcess, onCancel, busy, select
   );
 }
 
-const PAGE_SIZE = 20;
+const DEFAULT_PAGE_SIZE = 20;
 // New sort column defaults to descending for the date field (most recent
 // first is almost always what you want) and ascending for everything else.
 const DEFAULT_SORT_DIR = {
-  last_seen_at: "desc", introduced_date: "desc", priority: "desc",
+  latest_movement_at: "desc", last_seen_at: "desc", introduced_date: "desc", priority: "desc",
   bill_number: "asc", bill_name: "asc", status: "asc",
   bill_category: "asc", bill_type: "asc", ministry_name: "asc",
 };
@@ -347,12 +362,19 @@ function BillManager({ t, dark, mode }) {
   const [actionError, setActionError] = useState("");
   const [bulkStatus, setBulkStatus] = useState("");
   const [page, setPage] = useState(1);
-  const [sortBy, setSortBy] = useState("last_seen_at");
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [linkFilter, setLinkFilter] = useState("");
+  const [houseFilter, setHouseFilter] = useState("");
+  const [movementFrom, setMovementFrom] = useState("");
+  const [movementTo, setMovementTo] = useState("");
+  const [sortBy, setSortBy] = useState("latest_movement_at");
   const [sortDir, setSortDir] = useState("desc");
   const [searchInput, setSearchInput] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [groupBy, setGroupBy] = useState("");
   const [docFilter, setDocFilter] = useState("");
+  const [legislativeStatus, setLegislativeStatus] = useState("");
+  const [pdfProcessing, setPdfProcessing] = useState("");
   const search = useDebounced(searchInput);
   // Selection is deliberately scoped to bills currently loaded on screen —
   // it's cleared on page/sort/search change rather than tracked across
@@ -361,29 +383,33 @@ function BillManager({ t, dark, mode }) {
   const [selectedIds, setSelectedIds] = useState(new Set());
 
   const queryParams = {
-    page, page_size: PAGE_SIZE, sort_by: sortBy, sort_dir: sortDir,
+    page, page_size: pageSize, sort_by: sortBy, sort_dir: sortDir,
     q: search || undefined,
     group_by: groupBy || undefined,
     // "" means no filter; "true"/"false" are strings from the <select>, so
     // they're sent as-is — FastAPI coerces them to real booleans.
     has_documents: docFilter || undefined,
-    ai_status: mode === "processed" && statusFilter ? statusFilter : undefined,
+    legislative_status: legislativeStatus || undefined,
+    pdf_processing: pdfProcessing || undefined,
+    link_status: linkFilter || undefined, introduced_house: houseFilter || undefined,
+    movement_from: movementFrom || undefined, movement_to: movementTo || undefined,
+    ai_status: statusFilter || undefined,
     processed_only: mode === "processed" ? true : undefined,
   };
 
   const { data: entities, error: entitiesError, refresh: refreshEntities } =
     usePolling(() => api.adminEntities(token, queryParams),
-      { intervalMs: 4000, deps: [page, sortBy, sortDir, search, statusFilter, groupBy, docFilter, mode] });
+      { intervalMs: 4000, deps: [page, sortBy, sortDir, search, statusFilter, legislativeStatus, pdfProcessing, groupBy, docFilter, linkFilter, houseFilter, movementFrom, movementTo, pageSize, mode] });
   const { data: jobsData, refresh: refreshJobs } =
     usePolling(() => api.listJobs(token, "running"), { intervalMs: 1500 });
 
   // Search/filter changes should snap back to page 1 — otherwise "page 3"
   // of an old, wider result set silently shows page 3 of a narrower one.
-  useEffect(() => { setPage(1); setSelectedIds(new Set()); }, [search, statusFilter, groupBy, docFilter, mode]);
+  useEffect(() => { setPage(1); setSelectedIds(new Set()); }, [search, statusFilter, legislativeStatus, pdfProcessing, groupBy, docFilter, linkFilter, houseFilter, movementFrom, movementTo, pageSize, mode]);
 
   const runningJobs = jobsData?.items || [];
   const items = entities?.items || [];
-  const totalPages = entities ? Math.max(1, Math.ceil(entities.total / PAGE_SIZE)) : 1;
+  const totalPages = entities ? Math.max(1, Math.ceil(entities.total / pageSize)) : 1;
 
   function handleSort(key) {
     setPage(1);
@@ -470,7 +496,7 @@ function BillManager({ t, dark, mode }) {
   if (entitiesError) return <ConnectionError t={t} message={entitiesError} onRetry={refreshEntities} />;
 
   const allOnPageSelected = items.length > 0 && selectedIds.size === items.length;
-  const selectStyle = { padding: "8px 12px", borderRadius: 8, border: `1px solid ${t.border}`, background: t.surface, color: t.text, fontSize: 12.5, fontFamily: "inherit" };
+  const selectStyle = { padding: "10px 38px 10px 14px", borderRadius: 14, border: `1px solid ${t.borderLight}`, background: t.surface, color: t.text, fontSize: 13, fontWeight: 550, fontFamily: "inherit", minHeight: 46, maxWidth: "100%" };
 
   return (
     <div>
@@ -480,29 +506,31 @@ function BillManager({ t, dark, mode }) {
           : "Ingestion only stores bill metadata — nothing is extracted or summarized until you trigger it here. Processing runs as a real, cancellable background job per bill."}
       </p>
 
-      <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
-        <div style={{ position: "relative", flex: 1, minWidth: 220 }}>
+      <div className="np-admin-filters" style={{ display: "flex", gap: 12, marginBottom: 18, flexWrap: "wrap", padding: 18, background: t.surface, border: `1px solid ${t.borderLight}`, borderRadius: 20, boxShadow: t.shadow }}>
+        <div className="np-admin-search" style={{ position: "relative", flex: "1 1 270px", minWidth: 210 }}>
           <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: t.textMuted }} />
           <input value={searchInput} onChange={e => setSearchInput(e.target.value)}
             placeholder="Search by bill name or number..."
-            style={{ width: "100%", padding: "8px 12px 8px 32px", borderRadius: 8, border: `1px solid ${t.border}`, background: t.surface, color: t.text, fontSize: 13, outline: "none", fontFamily: "inherit", boxSizing: "border-box" }} />
+            style={{ width: "100%", padding: "10px 14px 10px 36px", borderRadius: 14, border: `1px solid ${t.borderLight}`, background: t.surface, color: t.text, fontSize: 13, outline: "none", fontFamily: "inherit", boxSizing: "border-box", minHeight: 46 }} />
         </div>
-        {mode === "processed" && (
-          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={selectStyle}>
-            {AI_STATUS_FILTERS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-          </select>
-        )}
-        <select value={docFilter} onChange={e => setDocFilter(e.target.value)} style={selectStyle}>
-          {DOCUMENT_FILTERS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-        </select>
-        <select value={groupBy} onChange={e => setGroupBy(e.target.value)} style={selectStyle}>
-          {GROUP_BY_OPTIONS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-        </select>
+        <AdminSelect label="Filter legislative status" value={legislativeStatus} onChange={setLegislativeStatus} width={220} options={[{value:"",label:"All legislative statuses"},...['Passed','Pending','Assented','Lapsed','Withdrawn','Negatived'].map(v=>({value:v,label:v})),{value:'unknown',label:'Unknown / missing status'}]}/>
+        <AdminSelect label="Filter PDF processing" value={pdfProcessing} onChange={setPdfProcessing} width={200} options={[{value:'',label:'All PDF processing'},{value:'not_processed',label:'PDF not processed'},{value:'partial',label:'PDF partially processed'},{value:'processed',label:'PDF fully processed'},{value:'no_documents',label:'No PDF documents'}]}/>
+        <AdminSelect label="Filter AI processing" value={statusFilter} onChange={setStatusFilter} width={190} options={AI_STATUS_FILTERS.map(f=>({value:f.value,label:f.label==='All statuses'?'All AI processing':f.label==='Not yet summarized'?'AI not processed':f.label}))}/>
+        <AdminSelect label="Filter document availability" value={docFilter} onChange={setDocFilter} options={DOCUMENT_FILTERS}/>
+        <AdminSelect label="PDF link health" value={linkFilter} onChange={setLinkFilter} width={210} options={[{value:'',label:'All PDF link statuses'},...['unchecked','available','broken','timeout','blocked','rate_limited','server_error','invalid_content','unknown'].map(v=>({value:v,label:v.replaceAll('_',' ')}))]}/>
+        <AdminSelect label="Introducing house" value={houseFilter} onChange={setHouseFilter} options={[{value:'',label:'Both Houses'},{value:'Lok Sabha',label:'Lok Sabha'},{value:'Rajya Sabha',label:'Rajya Sabha'}]}/>
+        <AdminDatePicker label="Movement from" value={movementFrom} onChange={setMovementFrom}/>
+        <AdminDatePicker label="To" value={movementTo} onChange={setMovementTo}/>
+        <div className="np-admin-filter-label" style={{display:'flex',alignItems:'center',gap:8,fontSize:12,color:t.textMuted}}>Rows <AdminSelect label="Rows per page" value={pageSize} onChange={setPageSize} width={90} options={[20,50,100,200,500].map(n=>({value:n,label:String(n)}))}/></div>
+        <AdminSelect label="Sort bills" value={sortBy} width={200} onChange={v=>{setSortBy(v);setSortDir(DEFAULT_SORT_DIR[v]||'asc');setPage(1);setSelectedIds(new Set());}} options={[{value:'latest_movement_at',label:'Latest movement'},{value:'introduced_date',label:'Introduction date'},{value:'status',label:'Legislative status'},{value:'bill_name',label:'Bill name'},{value:'bill_number',label:'Bill number'},{value:'last_changed_at',label:'Last changed'},{value:'priority',label:'Unprocessed PDF first'}]}/>
+        <button type="button" onClick={() => setSortDir(d => d === "asc" ? "desc" : "asc")} className="np-admin-filter-action" style={{...selectStyle, cursor:"pointer", padding:"10px 15px"}} aria-label="Toggle sort direction" title="Toggle ascending / descending">{sortDir === "asc" ? "↑ Asc" : "↓ Desc"}</button>
+        {(legislativeStatus || pdfProcessing || statusFilter || docFilter) && <button type="button" onClick={() => { setLegislativeStatus(""); setPdfProcessing(""); setStatusFilter(""); setDocFilter(""); }} className="np-admin-filter-action" style={{...selectStyle, cursor:"pointer", padding:"10px 15px"}}>Clear filters</button>}
+        <AdminSelect label="Group bills" value={groupBy} onChange={setGroupBy} width={180} options={GROUP_BY_OPTIONS}/>
         <button
           onClick={() => { setSortBy("priority"); setSortDir("desc"); setPage(1); setSelectedIds(new Set()); }}
-          title="Rank by how worth processing each bill is: weightier categories (Constitution Amendment, Money Bill) and further-along statuses first, and bills with no PDFs attached pushed to the bottom since there's nothing to process."
+          title="Show bills with unprocessed source documents first; no legislative importance score."
           style={{ padding: "8px 14px", borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6, border: `1px solid ${sortBy === "priority" ? t.primary : t.border}`, background: sortBy === "priority" ? t.primary : "transparent", color: sortBy === "priority" ? "#fff" : t.textSub }}>
-          <ArrowDownWideNarrow size={13} />Priority
+          <ArrowDownWideNarrow size={13} />PDF queue
         </button>
       </div>
 
@@ -556,7 +584,7 @@ function BillManager({ t, dark, mode }) {
             style={{ width: 15, height: 15, cursor: "pointer", accentColor: t.primary, flexShrink: 0 }} />
           <span style={{ width: 15 }} />
           <SortHeader label="Bill" sortKey="bill_name" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} t={t} style={{ flex: 1, minWidth: 200 }} />
-          <SortHeader label="Date" sortKey="last_seen_at" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} t={t} style={{ minWidth: 100 }} />
+          <SortHeader label="Movement" sortKey="latest_movement_at" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} t={t} style={{ minWidth: 100 }} />
           <span style={{ minWidth: 130, fontSize: 11, fontWeight: 700, color: t.textMuted }}>PDF status</span>
           <span style={{ minWidth: 120, fontSize: 11, fontWeight: 700, color: t.textMuted }}>AI status</span>
           <span style={{ minWidth: 210 }} />
@@ -565,7 +593,7 @@ function BillManager({ t, dark, mode }) {
           <p style={{ fontSize: 13, color: t.textMuted, padding: 16 }}>Loading…</p>
         ) : !items.length ? (
           <p style={{ fontSize: 13, color: t.textMuted, padding: 16 }}>
-            {search || statusFilter || docFilter ? "No bills match your search or filter." : "No bills yet — run the ingestion service."}
+            {search || statusFilter || docFilter || legislativeStatus || pdfProcessing ? "No bills match your search or filter." : "No bills yet — run the ingestion service."}
           </p>
         ) : (
           // With grouping on, the API returns rows already sorted by the
@@ -595,7 +623,7 @@ function BillManager({ t, dark, mode }) {
         {entities && entities.total > 0 && (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", borderTop: `1px solid ${t.borderLight}` }}>
             <span style={{ fontSize: 11.5, color: t.textMuted }}>
-              Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, entities.total)} of {entities.total}
+              Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, entities.total)} of {entities.total}
             </span>
             <div style={{ display: "flex", gap: 6 }}>
               <button onClick={() => changePage(page - 1)} disabled={page <= 1}
@@ -715,9 +743,10 @@ function Queue({ t, dark, token }) {
 // ---------- Published (read-only; simplified from the old mock's Feed Manager) ----------
 
 function Published({ t, dark, token }) {
-  const { data, error, refresh } = usePolling(() => api.adminEntities(token, { page_size: 200 }), { intervalMs: 8000 });
+  const [publishedPage,setPublishedPage] = useState(1);
+  const { data, error, refresh } = usePolling(() => api.adminEntities(token, { page:publishedPage,page_size:50,ai_status:"approved" }), { intervalMs: 8000, deps:[publishedPage] });
   if (error) return <ConnectionError t={t} message={error} onRetry={refresh} />;
-  const published = (data?.items || []).filter(b => b.ai_status === "approved");
+  const published = data?.items || [];
 
   return (
     <div>
@@ -734,6 +763,11 @@ function Published({ t, dark, token }) {
           </div>
         ))}
         {!published.length && <p style={{ fontSize: 13, color: t.textMuted }}>Nothing published yet — approve something in the Review queue.</p>}
+        {data?.total > 50 && <div style={{display:"flex",gap:12,alignItems:"center"}}>
+          <button disabled={publishedPage===1} onClick={()=>setPublishedPage(p=>p-1)}>Previous</button>
+          <span>Page {publishedPage} of {Math.ceil(data.total/50)}</span>
+          <button disabled={publishedPage>=Math.ceil(data.total/50)} onClick={()=>setPublishedPage(p=>p+1)}>Next</button>
+        </div>}
       </div>
     </div>
   );
@@ -789,6 +823,82 @@ function Comparator({ t, dark, token }) {
   );
 }
 
+// ---------- Manual ingestion control ----------
+function IngestionControl({ t, token }) {
+  const [house, setHouse] = useState("both");
+  const [dryRun, setDryRun] = useState(true);
+  const [state, setState] = useState(null);
+  const [logs, setLogs] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [confirm, setConfirm] = useState(false);
+  const refresh = useCallback(async () => {
+    try {
+      const result = await api.ingestionStatus(token);
+      setState(result);
+      if (result.active?.id) {
+        const logData = await api.ingestionLogs(token, result.active.id);
+        setLogs(logData.log);
+      }
+    } catch (e) { setError(e.message); }
+  }, [token]);
+  useEffect(() => {
+    refresh();
+    const timer = setInterval(refresh, 3000);
+    return () => clearInterval(timer);
+  }, [refresh]);
+  async function start() {
+    setBusy(true); setError(""); setConfirm(false);
+    try { await api.startIngestion(token, house, dryRun); setLogs(""); await refresh(); }
+    catch (e) { setError(e.message); }
+    finally { setBusy(false); }
+  }
+  const active = state?.active;
+  const running = active?.status === "running";
+  const field = { padding: "10px 12px", border: `1px solid ${t.borderLight}`, borderRadius: 8, background: t.surface, color: t.text };
+  return <div style={{ maxWidth: 920, display: "grid", gap: 18 }}>
+    <section style={{ padding: 20, border: `1px solid ${t.borderLight}`, borderRadius: 12, background: t.surface }}>
+      <h2 style={{ margin: "0 0 6px", fontSize: 17, color: t.text }}>Run parliamentary ingestion</h2>
+      <p style={{ fontSize: 13, color: t.textMuted, marginTop: 0 }}>Fetch bills and register their source PDFs. This action never downloads, extracts, or summarizes PDFs.</p>
+      <label style={{ display: "grid", gap: 6, color: t.text, fontSize: 13, marginBottom: 16 }}>House
+        <select style={field} value={house} disabled={running || busy} onChange={e => {setHouse(e.target.value);setConfirm(false);}}>
+          <option value="both">Both Houses</option><option value="ls">Lok Sabha only</option><option value="rs">Rajya Sabha only</option>
+        </select>
+      </label>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, color: t.text, fontSize: 13, marginBottom: 16 }}>
+        <input type="checkbox" checked={dryRun} disabled={running || busy} onChange={e => {setDryRun(e.target.checked);setConfirm(false);}} />
+        Dry run — fetch and compare only; write nothing
+      </label>
+      {!dryRun && !confirm && <button style={field} disabled={running || busy} onClick={() => setConfirm(true)}>Review live ingestion</button>}
+      {!dryRun && confirm && <div style={{ padding: 12, border: "1px solid #D97706", borderRadius: 8, marginBottom: 12, color: t.text }}>
+        This will write bill and document records for {house === "both" ? "both Houses" : house === "ls" ? "Lok Sabha" : "Rajya Sabha"}. No PDF or AI jobs will start.
+        <div style={{ marginTop: 10, display: "flex", gap: 10 }}><button style={field} disabled={running || busy} onClick={start}>Confirm ingestion</button><button style={field} onClick={() => setConfirm(false)}>Back</button></div>
+      </div>}
+      {dryRun && <button style={field} disabled={running || busy} onClick={start}>{busy ? "Starting…" : "Start dry run"}</button>}
+      {running && <span style={{ marginLeft: 12, color: t.textMuted, fontSize: 13 }}>An ingestion run is already in progress.</span>}
+      {error && <p role="alert" style={{ color: t.danger, fontSize: 13 }}>{error}</p>}
+    </section>
+    <section style={{ padding: 20, border: `1px solid ${t.borderLight}`, borderRadius: 12, background: t.surface }}>
+      <h2 style={{ fontSize: 16, color: t.text, marginTop: 0 }}>Latest run</h2>
+      {active ? <div style={{ fontSize: 13, color: t.text, display: "grid", gap: 5 }}>
+        <div>Status: <strong>{active.status}</strong> · {active.dry_run ? "Dry run" : "Live ingestion"} · {active.house}</div>
+        <div>Started: {new Date(active.started_at).toLocaleString()}</div>
+        {active.finished_at && <div>Finished: {new Date(active.finished_at).toLocaleString()}</div>}
+        {active.exit_code != null && <div>Exit code: {active.exit_code}</div>}
+      </div> : <p style={{ fontSize: 13, color: t.textMuted }}>No run started in this API session.</p>}
+      <button style={{ ...field, marginTop: 12 }} onClick={refresh}>Refresh</button>
+      <pre style={{ background: t.bg || "#111827", color: t.text, border: `1px solid ${t.borderLight}`, borderRadius: 8, padding: 12, maxHeight: 320, overflow: "auto", whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: 12 }}>{logs || "Logs will appear here after starting a run."}</pre>
+    </section>
+    <section style={{ padding: 20, border: `1px solid ${t.borderLight}`, borderRadius: 12, background: t.surface }}>
+      <h2 style={{ fontSize: 16, color: t.text, marginTop: 0 }}>Last recorded totals</h2>
+      {(state?.houses || []).length ? (state.houses.map(h => <div key={h.house} style={{ padding: "8px 0", borderBottom: `1px solid ${t.borderLight}`, color: t.text, fontSize: 13 }}>
+        <strong>{h.house}</strong> · {h.last_total_bills} source records · {h.last_new_bills_count} newly inserted · {h.last_run_status || "Unknown"}
+        {h.last_run_at && <div style={{ color: t.textMuted }}>{new Date(h.last_run_at).toLocaleString()}</div>}
+      </div>)) : <p style={{ fontSize: 13, color: t.textMuted }}>No completed ingestion recorded.</p>}
+    </section>
+  </div>;
+}
+
 // ---------- Layout ----------
 
 export default function AdminLayout({ dark, t }) {
@@ -802,15 +912,15 @@ export default function AdminLayout({ dark, t }) {
   }
 
   return (
-    <div style={{ display: "flex", minHeight: "calc(100vh - 56px)" }}>
+    <div className="np-admin-shell" style={{ display: "flex", minHeight: "calc(100vh - 56px)", alignItems: "flex-start" }}>
       <style>{`@keyframes np-pulse { 0%,100%{opacity:1} 50%{opacity:.3} }`}</style>
-      <aside style={{ width: 210, flexShrink: 0, borderRight: `1px solid ${t.borderLight}`, background: t.surface, padding: "20px 12px", display: "flex", flexDirection: "column" }}>
+      <aside className="np-admin-sidebar" style={{ width: 210, flexShrink: 0, borderRight: `1px solid ${t.borderLight}`, background: t.surface, padding: "20px 12px", display: "flex", flexDirection: "column", position: "fixed", top: 56, bottom: 0, left: 0, height: "calc(100dvh - 56px)", maxHeight: "calc(100dvh - 56px)", overflow: "hidden", zIndex: 40 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 8px", marginBottom: 4 }}>
           <Shield size={18} color={t.primary} aria-hidden="true" />
           <span style={{ fontSize: 13, fontWeight: 800, color: t.text }}>Moderator</span>
         </div>
         <div style={{ padding: "0 8px", marginBottom: 16, fontSize: 11, color: t.textMuted }}>{user?.email}</div>
-        <nav style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1 }}>
+        <nav style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minHeight: 0, overflowY: "auto", overscrollBehavior: "contain" }}>
           {TABS.map(({ key, label, Icon }) => (
             <button key={key} onClick={() => setTab(key)}
               style={{ display: "flex", alignItems: "center", gap: 9, padding: "9px 10px", borderRadius: 8, border: "none", background: tab === key ? (dark ? "#0C1B3A" : "#EFF6FF") : "none", color: tab === key ? t.primary : t.textSub, fontSize: 13, fontWeight: tab === key ? 700 : 500, cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
@@ -819,15 +929,16 @@ export default function AdminLayout({ dark, t }) {
           ))}
         </nav>
         <button onClick={handleLogout}
-          style={{ display: "flex", alignItems: "center", gap: 9, padding: "9px 10px", borderRadius: 8, border: `1px solid ${t.borderLight}`, background: "none", color: t.textMuted, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+          style={{ display: "flex", alignItems: "center", gap: 9, padding: "9px 10px", borderRadius: 8, border: `1px solid ${t.borderLight}`, background: "none", color: t.textMuted, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", flexShrink: 0, marginTop: 12 }}>
           <LogOut size={13} aria-hidden="true" />Sign out
         </button>
       </aside>
-      <main style={{ flex: 1, padding: "24px 24px", minWidth: 0 }}>
+      <main className="np-admin-main" style={{ flex: 1, padding: "24px 24px", minWidth: 0, marginLeft: 210 }}>
         <div style={{ marginBottom: 22 }}>
           <h1 style={{ fontSize: 20, fontWeight: 800, color: t.text, margin: "0 0 4px 0" }}>{TABS.find(x => x.key === tab)?.label}</h1>
           <p style={{ fontSize: 13, color: t.textMuted, margin: 0 }}>
             {tab === "dashboard" && "Overview of tracked government activity and moderation load."}
+            {tab === "ingestion" && "Fetch either House or both, with a safe dry-run option. No automatic PDF processing."}
             {tab === "processing" && "Pick which bills get extracted and summarized — nothing runs automatically."}
             {tab === "processed" && "Search and filter bills that have already been through processing."}
             {tab === "queue" && "Review AI-drafted cards before they go public."}
@@ -835,6 +946,7 @@ export default function AdminLayout({ dark, t }) {
             {tab === "comparator" && "Compare two published bills side by side."}
           </p>
         </div>
+        {tab === "ingestion" && <IngestionControl t={t} token={token} />}
         {tab === "dashboard" && <Dashboard t={t} dark={dark} token={token} />}
         {tab === "processing" && <BillsProcessing t={t} dark={dark} />}
         {tab === "processed" && <ProcessedBills t={t} dark={dark} />}

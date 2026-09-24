@@ -42,18 +42,16 @@ function App() {
 
   return (
     <ErrorBoundary t={t}>
-      <div style={{ minHeight: "100vh", background: t.bg, fontFamily: "'Inter', system-ui, sans-serif", transition: "background 0.25s" }}>
+      <div className="np-app" data-theme={dark ? "dark" : "light"} style={{ minHeight: "100vh", background: t.bg, fontFamily: "'Inter', system-ui, sans-serif", transition: "background 0.25s" }}>
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap');
           * { box-sizing: border-box; }
           ::-webkit-scrollbar { width:5px; height:5px; }
           ::-webkit-scrollbar-thumb { background:${dark ? "#1E3A5F" : "#CBD5E1"}; border-radius:99px; }
           ::-webkit-scrollbar-track { background:transparent; }
-          input::placeholder { color:rgba(255,255,255,0.38); }
+
           html { scroll-behavior:smooth; }
-          a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
-            outline: 2px solid #38BDF8; outline-offset: 2px;
-          }
+
           @keyframes shimmer { 0%,100%{opacity:.5} 50%{opacity:1} }
           @media (prefers-reduced-motion: reduce) {
             * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }

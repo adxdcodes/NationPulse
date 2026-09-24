@@ -26,8 +26,13 @@ USER_AGENT = os.getenv("USER_AGENT", "NationPulseBot/1.0")
 WORKER_THREADS = int(os.getenv("WORKER_THREADS", "4"))
 
 OCR_ENABLED = _bool("OCR_ENABLED", True)
-OCR_MAX_PAGES = int(os.getenv("OCR_MAX_PAGES", "25"))
+OCR_MAX_PAGES = int(os.getenv("OCR_MAX_PAGES", "0"))
 
 # Below this character count, a "successfully" extracted PDF is treated as
 # having no real text layer (i.e. scanned) and routed to OCR instead.
 MIN_TEXT_LAYER_CHARS = int(os.getenv("MIN_TEXT_LAYER_CHARS", "40"))
+
+# OCR tuning; OCR_MAX_PAGES=0 processes all pages that need OCR.
+OCR_DPI = int(os.getenv('OCR_DPI', '200'))
+OCR_LANGUAGE = os.getenv('OCR_LANGUAGE', 'eng')
+TESSERACT_CMD = os.getenv('TESSERACT_CMD', '')

@@ -19,18 +19,12 @@ from downloader import download_pdf, DownloadError
 from extractor import extract_text
 from storage import get_storage, build_key, sha256_bytes
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-)
-log = logging.getLogger("pdf_pipeline")
+from log_setup import configure
+log = configure("pdf_pipeline")
 
 
-def process_one(row: dict, storage) -> tuple[int, bool, str]:
-    """Returns (doc_id, success, message)."""
+def process_one(row: dict, storage):
     doc_id = row["doc_id"]
-    with db.get_conn() as conn:
-        db.mark_extracting(conn, doc_id)
 
     try:
         pdf_bytes = download_pdf(row["source_url"])
@@ -38,6 +32,10 @@ def process_one(row: dict, storage) -> tuple[int, bool, str]:
         with db.get_conn() as conn:
             db.mark_failed(conn, doc_id, str(e))
         return doc_id, False, f"download failed: {e}"
+
+    # Only mark extracting after download succeeds.
+    with db.get_conn() as conn:
+        db.mark_extracting(conn, doc_id)
 
     file_hash = sha256_bytes(pdf_bytes)
 
@@ -114,8 +112,22 @@ def main():
     args = parser.parse_args()
 
     if args.bill_id is not None:
-        processed = run_batch(args.limit, args.doc_type, args.force, args.workers, bill_id=args.bill_id)
-        return
+        processed = run_batch(
+            args.limit,
+            args.doc_type,
+            args.force,
+            args.workers,
+            bill_id=args.bill_id
+        )
+
+        if processed == 0:
+            log.error(
+                "No eligible PDF documents for bill %s",
+                args.bill_id
+            )
+            raise SystemExit(1)
+
+    return
 
     if args.loop:
         log.info("Starting in loop mode, polling every %ds.", args.interval)

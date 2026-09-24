@@ -1,7 +1,9 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useState, useMemo } from "react";
 import { Tag } from "lucide-react";
-import { EVENTS, TOPIC_INFO, DOMAINS, STATUSES } from "../data/mockData.js";
+import {api} from "../api/client.js";
+import {useLive,LiveError} from "../api/useLive.jsx";
+const DOMAINS=["All","Parliament"],STATUSES=["All","Introduced","In Committee","Passed","Enacted","Withdrawn"];
 import { UniversalCard, EmptyState, Footer, PageHeader, FollowButton } from "../components/UI.jsx";
 import NotFound from "./ErrorPages.jsx";
 
@@ -11,7 +13,9 @@ export default function TopicDetail({ dark, t }) {
   const [filters, setFilters] = useState({ domain: "All", status: "All" });
 
   const decoded = decodeURIComponent(topic);
-  const info = TOPIC_INFO[decoded];
+  const {data,error,loading}=useLive(()=>api.listBills({topic:decoded,page_size:100}),[decoded]);
+  const EVENTS=data?.items||[];
+  const info={blurb:`Approved parliamentary bills about ${decoded}.`};
 
   const filtered = useMemo(() => EVENTS.filter(ev => {
     if (ev.topic !== decoded) return false;
@@ -33,7 +37,7 @@ export default function TopicDetail({ dark, t }) {
     <div>
       <PageHeader t={t} eyebrow="TOPIC" IconComp={Tag} title={decoded} subtitle={info.blurb}
         right={<FollowButton kind="topic" id={decoded} t={t} onDark />} />
-      <div style={{ background: t.surface, borderBottom: `1px solid ${t.borderLight}`, padding: "0 20px", display: "flex", alignItems: "center", gap: 20, overflowX: "auto", minHeight: 46 }}>
+      <LiveError error={error}/><div style={{ background: t.surface, borderBottom: `1px solid ${t.borderLight}`, padding: "0 20px", display: "flex", alignItems: "center", gap: 20, overflowX: "auto", minHeight: 46 }}>
         {[["DOMAIN", DOMAINS, "domain"], ["STATUS", STATUSES, "status"]].map(([label, opts, key]) => (
           <div key={key} style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
             <span style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, letterSpacing: 0.7 }}>{label}</span>

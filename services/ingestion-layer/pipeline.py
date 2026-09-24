@@ -6,13 +6,14 @@
     4. Determine which bills were genuinely new (Postgres tells us this
        directly via the insert-vs-update RETURNING trick — see db.py).
     5. Store the new total.
-    6. If anything new showed up, optionally trigger the PDF + AI pipelines.
+    6. Finish without triggering PDF or AI processing. Documents remain
+       available for explicit, individual processing from the admin panel.
 
 Usage:
     python pipeline.py                  # both houses
     python pipeline.py --house rs       # just Rajya Sabha
     python pipeline.py --dry-run        # fetch + compare, write nothing
-    python pipeline.py --no-trigger     # skip the downstream pipelines this run
+    python pipeline.py --no-trigger     # legacy flag; no longer necessary
 """
 import argparse
 import logging
@@ -20,10 +21,9 @@ import logging
 import config
 import db
 from fetch import fetch_house_bills, FetchError
-from trigger import run_downstream
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-log = logging.getLogger("ingestion")
+from log_setup import configure
+log = configure("ingestion")
 
 HOUSE_ALIASES = {"rs": "Rajya Sabha", "ls": "Lok Sabha"}
 
@@ -35,8 +35,9 @@ def process_house(house_cfg: dict, dry_run: bool) -> int:
         raw_rows = fetch_house_bills(house, endpoint, size)
     except FetchError as e:
         log.error("[%s] fetch failed: %s", house, e)
-        with db.get_conn() as conn:
-            db.update_state(conn, house, get_prev_total(conn, house), 0, "error", str(e))
+        if not dry_run:
+            with db.get_conn() as conn:
+                db.update_state(conn, house, get_prev_total(conn, house), 0, "error", str(e))
         return 0
 
     new_total = len(raw_rows)
@@ -99,7 +100,7 @@ def main():
     parser = argparse.ArgumentParser(description="sansad.in bill ingestion")
     parser.add_argument("--house", choices=["rs", "ls", "both"], default="both")
     parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--no-trigger", action="store_true", help="Skip triggering downstream pipelines this run")
+    parser.add_argument("--no-trigger", action="store_true", help="Deprecated compatibility flag; downstream pipelines are never auto-triggered")
     args = parser.parse_args()
 
     houses = config.HOUSES
@@ -113,8 +114,7 @@ def main():
 
     log.info("Run complete: %d new bill(s) across %d house(s).", total_new, len(houses))
 
-    if not args.dry_run and not args.no_trigger:
-        run_downstream(total_new)
+    log.info("Ingestion finished. PDF and AI processing are manual-only; no downstream pipelines were started.")
 
 
 if __name__ == "__main__":

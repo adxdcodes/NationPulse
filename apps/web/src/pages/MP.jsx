@@ -1,7 +1,9 @@
 import { useState, useMemo } from "react";
+import {api} from "../api/client.js";
+import {useLive,LiveError} from "../api/useLive.jsx";
 import { useParams, Link } from "react-router-dom";
 import { Users, Landmark, GraduationCap, Briefcase, Calendar, MessageSquare, TrendingUp, FileText } from "lucide-react";
-import { MPS, getMPById, getEventsForMP } from "../data/mockData.js";
+
 import { FONT_SERIF } from "../context/ThemeContext.jsx";
 import { PartyBadge, UniversalCard, EmptyState, Footer, PageHeader, FollowButton } from "../components/UI.jsx";
 import NotFound from "./ErrorPages.jsx";
@@ -30,11 +32,13 @@ function MPDirectory({ dark, t }) {
   const [q, setQ] = useState("");
   const [house, setHouse] = useState("All");
 
+  const {data,error}=useLive(()=>api.listMPs({q,house}),[q,house]);
+  const MPS=data?.items||[];
   const filtered = useMemo(() => MPS.filter(mp => {
     if (house !== "All" && mp.house !== house) return false;
     if (q && !`${mp.name} ${mp.state} ${mp.constituency} ${mp.party}`.toLowerCase().includes(q.toLowerCase())) return false;
     return true;
-  }), [q, house]);
+  }), [q, house,data]);
 
   const chip = (active) => ({
     padding: "5px 13px", borderRadius: 99, fontSize: 12, fontWeight: 500,
@@ -47,7 +51,7 @@ function MPDirectory({ dark, t }) {
     <div>
       <PageHeader t={t} eyebrow="DIRECTORY" IconComp={Users} title="Members of Parliament"
         subtitle="Track sponsorships, committee work, and legislative activity for MPs across the Lok Sabha and Rajya Sabha." />
-      <div style={{ maxWidth: 1000, margin: "0 auto", padding: "22px 20px" }}>
+      <LiveError error={error}/><div style={{ maxWidth: 1000, margin: "0 auto", padding: "22px 20px" }}>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 18, alignItems: "center" }}>
           <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search by name, state, or constituency..."
             style={{ flex: 1, minWidth: 220, padding: "9px 14px", borderRadius: 9, border: `1px solid ${t.border}`, background: t.surface, color: t.text, fontSize: 13, outline: "none", fontFamily: "inherit" }} />
@@ -84,7 +88,7 @@ function MPDirectory({ dark, t }) {
 }
 
 function MPProfile({ mp, dark, t }) {
-  const events = getEventsForMP(mp.id);
+  const events = mp.bills || [];
   return (
     <div>
       <div style={{ background: t.topbar, borderBottom: `1px solid ${t.topbarBorder}`, padding: "28px 20px" }}>
@@ -150,8 +154,12 @@ function MPProfile({ mp, dark, t }) {
 
 export default function MP({ dark, t }) {
   const { id } = useParams();
-  if (!id) return <MPDirectory dark={dark} t={t} />;
-  const mp = getMPById(id);
+  return id ? <MPDetail id={id} dark={dark} t={t}/> : <MPDirectory dark={dark} t={t}/>;
+}
+function MPDetail({id,dark,t}) {
+  const {data:mp,error,loading}=useLive(()=>api.getMP(id),[id]);
+  if(loading)return <p>Loading MP…</p>;
+  if(error)return <LiveError error={error}/>;
   if (!mp) return <NotFound t={t} />;
   return <MPProfile mp={mp} dark={dark} t={t} />;
 }

@@ -7,7 +7,7 @@ const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 class ApiError extends Error {
   constructor(status, detail) {
-    super(detail || `Request failed with status ${status}`);
+    super(typeof detail === "string" ? detail : (detail ? JSON.stringify(detail) : `Request failed with status ${status}`));
     this.status = status;
   }
 }
@@ -30,6 +30,8 @@ async function request(path, { method = "GET", token, body, params } = {}) {
 }
 
 export const api = {
+  checkDocumentLink: (token, id) => request(`/admin/documents/${id}/check-link`, {method:"POST",token}),
+  checkBillLinks: (token,id) => request(`/admin/bills/${id}/check-links`, {method:"POST",token}),
   // --- auth ---
   signup: (name, email, password) => request("/auth/signup", { method: "POST", body: { name, email, password } }),
   login: (email, password) => request("/auth/login", { method: "POST", body: { email, password } }),
@@ -56,6 +58,10 @@ export const api = {
   approveContent: (token, contentId) => request(`/admin/queue/${contentId}/approve`, { method: "POST", token }),
   rejectContent: (token, contentId) => request(`/admin/queue/${contentId}/reject`, { method: "POST", token }),
   editContent: (token, contentId, fields) => request(`/admin/queue/${contentId}`, { method: "PATCH", token, body: fields }),
+
+  ingestionStatus: (token) => request("/admin/ingestion/status", { token }),
+  startIngestion: (token, house, dry_run) => request("/admin/ingestion/start", { method: "POST", token, body: { house, dry_run } }),
+  ingestionLogs: (token, runId) => request(`/admin/ingestion/logs/${runId}`, { token }),
 
   // --- admin: entities / dashboard ---
   adminEntities: (token, params) => request("/admin/entities", { token, params }),

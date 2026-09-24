@@ -10,6 +10,10 @@ Usage:
 import argparse
 import logging
 import time
+import re
+
+import model_scheduler as scheduler
+from free_model_discovery import discover, FREE_TEXT_MODELS
 
 import config
 import db
@@ -18,8 +22,8 @@ from providers.base import ProviderError
 from prompts import SYSTEM_PROMPT, BILL_SUMMARY_SCHEMA, build_user_prompt
 from validate import validate_bill_summary, SchemaValidationError
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-log = logging.getLogger("ai_pipeline")
+from log_setup import configure
+log = configure("ai_pipeline")
 
 
 def generate_with_retry(provider, system_prompt, user_prompt, schema):
@@ -61,21 +65,51 @@ def process_one(bill_id: int, providers: list, prompt: str | None = None) -> tup
             prompt=prompt,
         )
 
+        # Model rotation is automatic; only models configured in ai_model_limits
+        # are eligible. A quota reservation is committed BEFORE calling Gemini.
         result = None
+        chosen_provider = None
         model_errors = []
-        for index, provider in enumerate(providers):
+        estimated_tokens = max(1, (len(SYSTEM_PROMPT) + len(user_prompt)) // 3)
+        remaining = list(providers)
+        while remaining:
+            with db.get_conn() as conn:
+                reservation = scheduler.reserve(
+                    conn, [p.model for p in remaining], bill_id, estimated_tokens)
+            if reservation is None:
+                model_errors.append("No configured model has available quota; try again after reset")
+                break
+            model_name, usage_id = reservation
+            chosen_provider = next(p for p in remaining if p.model == model_name)
+            remaining = [p for p in remaining if p.model != model_name]
             try:
-                result = generate_with_retry(provider, SYSTEM_PROMPT, user_prompt, BILL_SUMMARY_SCHEMA)
-                if index:
-                    log.info("Model %s succeeded after fallback.", provider.model)
+                # Do not retry 429 on the same model: switch or stop instead.
+                result = chosen_provider.generate(SYSTEM_PROMPT, user_prompt, BILL_SUMMARY_SCHEMA)
+                validate_bill_summary(result.parsed)
+                metadata = result.raw_response.get("usageMetadata", {})
+                with db.get_conn() as conn:
+                    scheduler.finish(conn, usage_id, "succeeded",
+                        actual_input=metadata.get("promptTokenCount"),
+                        actual_output=metadata.get("candidatesTokenCount"))
                 break
             except (ProviderError, SchemaValidationError) as error:
-                model_errors.append(f"{provider.model}: {error}")
-                if index < len(providers) - 1:
-                    log.warning("Model %s failed; trying fallback model %s.", provider.model, providers[index + 1].model)
+                message = str(error)
+                match = re.search(r"Gemini API returned (\d+)", message)
+                http_status = int(match.group(1)) if match else None
+                limited = http_status == 429
+                with db.get_conn() as conn:
+                    scheduler.finish(conn, usage_id, "rate_limited" if limited else "failed",
+                                     http_status=http_status, error=message)
+                    if limited:
+                        scheduler.cooldown(conn, model_name,
+                            seconds=scheduler.retry_seconds(message), error=message)
+                    elif http_status in (400, 401, 403, 404):
+                        scheduler.cooldown(conn, model_name, seconds=86400, error=message)
+                model_errors.append(f"{model_name}: {message}")
+                log.warning("Model %s failed (%s); considering next eligible model", model_name, http_status)
 
         if result is None:
-            raise ProviderError("All Gemini models failed: " + " | ".join(model_errors))
+            raise ProviderError("No model completed generation: " + " | ".join(model_errors))
 
         with db.get_conn() as conn:
             db.save_success(
@@ -84,7 +118,7 @@ def process_one(bill_id: int, providers: list, prompt: str | None = None) -> tup
                 raw_response=result.raw_response, input_char_count=len(user_prompt),
                 latency_ms=result.latency_ms, model_version=result.model,
             )
-        return True, f"bill {bill_id} ({bill['bill_number']}) -> {provider.name}/{provider.model}, {result.latency_ms}ms"
+        return True, f"bill {bill_id} ({bill['bill_number']}) -> {chosen_provider.name}/{chosen_provider.model}, {result.latency_ms}ms"
 
     except Exception as e:
         with db.get_conn() as conn:
@@ -94,9 +128,27 @@ def process_one(bill_id: int, providers: list, prompt: str | None = None) -> tup
 
 def run_batch(limit: int, provider_name: str, model: str, bill_id: int | None = None,
               prompt: str | None = None) -> int:
-    model_names = [model or config.GEMINI_MODEL, config.GEMINI_MODEL_2, config.GEMINI_MODEL_3]
-    model_names = list(dict.fromkeys(name.strip() for name in model_names if name and name.strip()))
-    providers = [get_provider(provider_name, model_name) for model_name in model_names]
+    if provider_name not in (None, "gemini"):
+        raise ValueError("This free-tier scheduler supports Gemini only")
+    if model:
+        if model not in FREE_TEXT_MODELS:
+            raise ValueError(f"Model {model!r} is not in the documented free-tier allowlist")
+        model_names = [model]
+    else:
+        model_names = discover()
+    if not model_names:
+        log.error("No eligible free-tier text models returned by Gemini models.list for this key.")
+        return 0
+    with db.get_conn() as conn:
+        configured = scheduler.model_diagnostics(conn, model_names)
+    for item in configured:
+        if not item["configured"]:
+            log.warning("Model %s is available to the key but has no quota row in ai_model_limits. Run db/006_free_model_candidates.sql.", item["model"])
+        elif not item["enabled"]:
+            log.warning("Model %s is disabled in ai_model_limits.", item["model"])
+        elif item["cooldown_until"]:
+            log.info("Model %s cooldown_until=%s", item["model"], item["cooldown_until"])
+    providers = [get_provider("gemini", model_name) for model_name in model_names]
     with db.get_conn() as conn:
         bill_ids = db.find_candidate_bills(conn, limit, bill_id=bill_id)
 

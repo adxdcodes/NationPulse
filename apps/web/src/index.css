@@ -1,2 +1,69 @@
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { margin: 0; }
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap');
+:root{font-family:Inter,system-ui,sans-serif;font-synthesis:none;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0}button,input,textarea,select{font:inherit}button{transition:background-color .18s,border-color .18s,box-shadow .18s,transform .18s}button:not(:disabled){cursor:pointer}button:not(:disabled):active{transform:translateY(1px)}a{transition:color .18s,opacity .18s}::selection{background:#a8c7fa;color:#112b56}
+.np-app{--np-brand:#3565d8;--np-brand-hover:#254eb7;--np-focus:#83a9ec;--np-ring:rgba(65,110,214,.14);--np-panel:#fff;--np-line:#dfe7f4;--np-muted:#65758d;--np-soft:#f5f8ff;min-height:100vh}
+.np-app[data-theme='dark']{--np-brand:#6898ff;--np-brand-hover:#8fb3ff;--np-focus:#91b5f8;--np-ring:rgba(109,154,249,.16);--np-panel:#16243d;--np-line:#344765;--np-muted:#a8bad5;--np-soft:#1d2c47;color-scheme:dark}
+/* Shared card language drawn from Pulse AI: gentle curves, quiet borders, subtle depth. */
+.np-app main article,.np-app main section,.np-app [class*='card'],.np-app [class*='Card']{transition:box-shadow .2s,border-color .2s}
+.np-app button{letter-spacing:-.005em}
+.np-app button:not(:disabled):hover{filter:brightness(1.045)}
+.np-app input,.np-app textarea,.np-app select{accent-color:var(--np-brand);min-width:0}
+.np-app input:not([type='checkbox']):not([type='radio']),.np-app textarea,.np-app select{transition:border-color .18s,box-shadow .18s,background-color .18s}
+/* A subtle focus ring replaces the harsh rectangular browser outline, while remaining keyboard-visible. */
+.np-app :is(button,a,[role='button'],[tabindex]):focus-visible{outline:2px solid var(--np-focus);outline-offset:3px}
+.np-app :is(input,textarea,select):focus,.np-app :is(input,textarea,select):focus-visible{outline:none!important;box-shadow:0 0 0 3px var(--np-ring);border-color:var(--np-focus)!important}
+.np-app :is(input,textarea,select)::placeholder{color:#8795ab;opacity:1}
+.np-app[data-theme='dark'] :is(input,textarea,select)::placeholder{color:#90a1bd}
+.np-app :is(input,textarea,select):disabled{opacity:.65;cursor:not-allowed}
+.np-app ::-webkit-scrollbar{width:8px;height:8px}.np-app ::-webkit-scrollbar-thumb{background:#8ca4c54d;border-radius:99px;border:2px solid transparent;background-clip:padding-box}
+.np-app ::-webkit-scrollbar-track{background:transparent}
+@media(prefers-reduced-motion:reduce){.np-app *, .np-app *::before,.np-app *::after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+
+/* NationPulse / Pulse AI unified visual system — all application routes. */
+.np-app{--np-brand:#3568da;--np-brand-hover:#2455c2;--np-focus:#82aff5;--np-ring:rgba(65,110,214,.15);--np-panel:#fff;--np-line:#d5e2f6;--np-muted:#7386a3;--np-soft:#edf4ff;color:#172844;background:radial-gradient(ellipse at 78% 0%,#e7f0ff 0%,transparent 42%),#f3f7ff}
+.np-app[data-theme='dark']{--np-brand:#80b4ff;--np-brand-hover:#a2caff;--np-focus:#82aff5;--np-ring:rgba(109,154,249,.17);--np-panel:#182235;--np-line:#364967;--np-muted:#94a4bf;--np-soft:#202d46;color:#f1f5ff;background:radial-gradient(ellipse at 80% 0%,#1c3050 0%,transparent 45%),#0d1525;color-scheme:dark}
+.np-app>div:first-child{isolation:isolate}
+.np-app nav a{transition:background .2s,color .2s,border-color .2s!important}
+.np-app button{border-radius:13px;transition:background-color .2s,border-color .2s,box-shadow .2s,transform .2s,filter .2s}
+.np-app button:not(:disabled):hover{filter:brightness(1.09)}
+.np-app :is(input:not([type='checkbox']):not([type='radio']),textarea,select){border-radius:13px;min-height:37px}
+.np-app :is(input,textarea,select):focus{outline:none!important;box-shadow:0 0 0 3px var(--np-ring)!important}
+.np-app :is([role='link'],article,[class*='card'],[class*='Card']){transition:transform .22s,box-shadow .22s,border-color .22s}
+.np-app [role='link']{border-radius:22px!important}
+.np-app [role='link']:hover{box-shadow:0 18px 46px rgba(7,18,41,.19)!important}
+.np-app [role='link']:focus-visible{outline:2px solid var(--np-focus);outline-offset:4px}
+.np-app :is(h1,h2,h3){letter-spacing:-.035em}
+.np-app h1{line-height:1.17}
+.np-app [class*='sidebar'],.np-app [class*='Sidebar']{border-color:var(--np-line)}
+.np-feed-hero{background:linear-gradient(110deg,#142f65,#2859b9)!important;padding:31px 22px!important;box-shadow:inset 0 1px rgba(255,255,255,.09)}
+.np-feed-hero h2{font-size:clamp(21px,2.4vw,29px)!important;letter-spacing:-.04em!important}
+.np-feed-hero p{color:#d3e2fc!important;font-size:12px!important}
+.np-feed-hero button{border-radius:99px!important;padding:9px 14px!important}
+.np-feed-list{padding-top:28px!important;padding-bottom:48px!important;gap:18px!important}
+.np-feed-list>[role='link']{border-radius:23px!important;padding:23px 25px!important}
+.np-feed-list>[role='link'] h3{font-size:19px!important;letter-spacing:-.025em}
+.np-feed-list>[role='link'] p{font-size:13px!important;line-height:1.75!important}
+.np-feed-page>div:first-child{min-height:58px!important;gap:22px!important}
+.np-feed-page>div:first-child button{padding:7px 14px!important;border-radius:99px!important}
+.np-chat-root .np-chat-input-wrap input:focus,.np-chat-root .np-chat-input-wrap input:focus-visible{box-shadow:none!important;outline:none!important}
+@media(max-width:700px){.np-feed-list{padding:18px 13px 36px!important}.np-feed-list>[role='link']{padding:18px!important}.np-feed-hero{padding:23px 16px!important}}
+
+/* Admin filters: Pulse AI control styling and restrained motion. */
+.np-admin-filters{align-items:center;animation:np-admin-enter .28s ease-out both}
+.np-admin-filters select{appearance:none;-webkit-appearance:none;min-height:46px;max-width:100%;padding-right:38px!important;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%2396a9c8' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E")!important;background-position:right 13px center!important;background-repeat:no-repeat!important;cursor:pointer;transition:border-color .2s,box-shadow .2s,background-color .2s,transform .2s}
+.np-admin-filters select:hover,.np-admin-filters input:hover{border-color:var(--np-brand)!important}
+.np-admin-filters :is(select,input):focus-visible{outline:none!important;border-color:var(--np-brand)!important;box-shadow:0 0 0 3px var(--np-ring)!important}
+.np-admin-filters .np-admin-date-field,.np-admin-filters .np-admin-filter-label{display:flex;align-items:center;gap:9px;white-space:nowrap;font-weight:600}
+.np-admin-filters input[type=date]{min-height:46px;padding:10px 12px!important;min-width:175px;max-width:100%;color-scheme:inherit;cursor:pointer}
+.np-admin-filters input[type=date]::-webkit-calendar-picker-indicator{cursor:pointer;opacity:.8;filter:var(--np-date-icon-filter,none)}
+.np-app[data-theme=dark]{--np-date-icon-filter:invert(1)}
+.np-admin-filters .np-admin-filter-action{min-height:46px;transition:background-color .2s,transform .2s,box-shadow .2s}
+.np-admin-filters .np-admin-filter-action:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(25,53,96,.14)}
+.np-admin-sidebar{box-sizing:border-box;overscroll-behavior:contain;isolation:isolate}
+.np-admin-sidebar nav{scrollbar-width:thin;scrollbar-color:var(--np-line) transparent}
+.np-admin-sidebar nav button{flex-shrink:0;transition:background-color .18s,color .18s,transform .18s}
+.np-admin-sidebar nav button:hover{transform:translateX(2px)}
+@keyframes np-admin-enter{from{opacity:.5;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:850px){.np-admin-sidebar{width:174px!important}.np-admin-main{margin-left:174px!important;padding:18px 12px!important}.np-admin-filters{padding:12px!important}.np-admin-filters select{flex:1 1 170px}}
+@media(max-width:540px){.np-admin-sidebar{width:140px!important;padding:14px 7px!important}.np-admin-main{margin-left:140px!important;padding:12px 8px!important}.np-admin-filters{gap:8px!important}.np-admin-filters .np-admin-date-field{flex-wrap:wrap}.np-admin-filters input[type=date]{min-width:0;width:100%}}
+@media(prefers-reduced-motion:reduce){.np-admin-filters{animation:none}.np-admin-sidebar nav button:hover,.np-admin-filters .np-admin-filter-action:hover{transform:none}}

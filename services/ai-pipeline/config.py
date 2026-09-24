@@ -8,7 +8,7 @@ DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localho
 
 AI_PROVIDER = os.getenv("AI_PROVIDER", "gemini")
 
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-pro")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
 GEMINI_MODEL_2 = os.getenv("GEMINI_MODEL_2", "")
 GEMINI_MODEL_3 = os.getenv("GEMINI_MODEL_3", "")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")

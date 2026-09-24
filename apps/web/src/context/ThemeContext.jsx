@@ -10,7 +10,7 @@ export function ThemeProvider({ children }) {
     try {
       const saved = localStorage.getItem("np-theme");
       if (saved) return saved === "dark";
-      return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
+      return true; // Pulse AI midnight theme by default; user preference still persists
     } catch {
       return false;
     }
@@ -38,28 +38,28 @@ export const FONT_SERIF = "'Source Serif 4', Georgia, serif";
 
 export const T = {
   light: {
-    bg: "#F0F4F8", surface: "#FFFFFF", surface2: "#F8FAFC",
-    border: "#CBD5E1", borderLight: "#E2E8F0",
-    text: "#0F172A", textSub: "#334155", textMuted: "#64748B",
-    primary: "#1E3A5F", primaryHover: "#152A47",
-    accent: "#0EA5E9", accentBg: "#E0F2FE", accentText: "#0369A1",
-    topbar: "#0F1E32", topbarBorder: "#1E3A5F",
-    shadow: "0 1px 3px rgba(15,23,42,0.08), 0 1px 2px rgba(15,23,42,0.06)",
-    shadowHover: "0 4px 16px rgba(15,23,42,0.12), 0 2px 6px rgba(15,23,42,0.08)",
-    danger: "#BE123C", dangerBg: "#FFF1F2",
-    success: "#15803D", successBg: "#F0FDF4",
+    bg: "#F3F7FF", surface: "#FFFFFF", surface2: "#EBF2FF",
+    border: "#D5E2F6", borderLight: "#E3EBF8",
+    text: "#172844", textSub: "#425775", textMuted: "#7386A3",
+    primary: "#3568DA", primaryHover: "#2455C2",
+    accent: "#4278E8", accentBg: "#EDF4FF", accentText: "#2458C6",
+    topbar: "#142F65", topbarBorder: "#3159A0",
+    shadow: "0 7px 28px rgba(23,52,108,.065)",
+    shadowHover: "0 16px 44px rgba(24,63,142,.16)",
+    danger: "#C33557", dangerBg: "#FFF0F3",
+    success: "#18845B", successBg: "#E9F8F1",
   },
   dark: {
-    bg: "#060D1A", surface: "#0F1C2E", surface2: "#0A1525",
-    border: "#1E3A5F", borderLight: "#172D4A",
-    text: "#E2EBF6", textSub: "#94A3B8", textMuted: "#475569",
-    primary: "#3B82F6", primaryHover: "#60A5FA",
-    accent: "#38BDF8", accentBg: "#0C2A3D", accentText: "#7DD3FC",
-    topbar: "#040C18", topbarBorder: "#0F1C2E",
-    shadow: "0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3)",
-    shadowHover: "0 4px 20px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.4)",
-    danger: "#FB7185", dangerBg: "#2A0A0A",
-    success: "#4ADE80", successBg: "#052012",
+    bg: "#0D1525", surface: "#182235", surface2: "#202D46",
+    border: "#364967", borderLight: "#2C3B55",
+    text: "#F1F5FF", textSub: "#C2CDE1", textMuted: "#94A4BF",
+    primary: "#80B4FF", primaryHover: "#A2CAFF",
+    accent: "#83BAFF", accentBg: "#233D63", accentText: "#B9D8FF",
+    topbar: "#111D32", topbarBorder: "#334766",
+    shadow: "0 8px 30px rgba(2,9,23,.19)",
+    shadowHover: "0 18px 55px rgba(0,5,19,.39)",
+    danger: "#FF8DA4", dangerBg: "#472638",
+    success: "#6DDDB0", successBg: "#1B443B",
   },
 };
 

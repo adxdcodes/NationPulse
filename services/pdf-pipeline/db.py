@@ -79,7 +79,8 @@ def mark_success(conn, doc_id: int, *, storage_path: str, file_hash: str, file_s
             SET storage_path = %s, file_hash = %s, file_size_bytes = %s,
                 downloaded_at = now(), extracted_text = %s, extraction_method = %s,
                 extraction_status = %s, extracted_at = now(), page_count = %s,
-                error_message = NULL
+                error_message = NULL, link_status='available',
+                last_success_at=now(), updated_at=now()
             WHERE id = %s
         """, (storage_path, file_hash, file_size_bytes, extracted_text,
               extraction_method, status, page_count, doc_id))

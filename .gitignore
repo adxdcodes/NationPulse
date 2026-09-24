@@ -1,6 +1,7 @@
 # Python environments and generated files
 .venv/
 __pycache__/
+**/__pycache__/
 *.py[cod]
 *.pyo
 .pytest_cache/
@@ -11,6 +12,7 @@ __pycache__/
 *.env
 !.env.example
 !**/.env.example
+!**/.env*.example
 
 # Node dependencies and build output
 node_modules/
@@ -19,5 +21,13 @@ build/
 
 # Logs and local tooling output
 *.log
+logs/
+**/ingestion_logs/
 .coverage
 coverage/
+
+# Generated pipeline data and local databases
+services/pdf-pipeline/storage/
+*.db
+*.sqlite
+*.sqlite3

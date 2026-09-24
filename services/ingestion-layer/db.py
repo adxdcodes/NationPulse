@@ -27,6 +27,7 @@ import psycopg2.extras
 
 import config
 from normalize import normalize_bill, content_hash, extract_documents
+from psycopg2.extras import Json
 
 log = logging.getLogger("ingestion")
 
@@ -93,14 +94,24 @@ def upsert_bills(conn, raw_rows: list[dict]) -> list[dict]:
             cur.execute(f"""
                 INSERT INTO bills ({col_list}, last_seen_at, last_changed_at)
                 VALUES ({placeholders}, now(), now())
-                ON CONFLICT (bill_number, bill_year, introduced_house) DO UPDATE SET
+                ON CONFLICT (introduced_house, bill_year, lower(btrim(bill_number)))
+                WHERE introduced_house IS NOT NULL AND bill_year IS NOT NULL AND btrim(bill_number) <> ''
+                DO UPDATE SET
+                    bill_name = EXCLUDED.bill_name,
+                    bill_type = EXCLUDED.bill_type,
+                    bill_category = EXCLUDED.bill_category,
+                    ministry_name = EXCLUDED.ministry_name,
+                    introduced_by = EXCLUDED.introduced_by,
+                    introduced_date = COALESCE(bills.introduced_date, EXCLUDED.introduced_date),
+                    referred_to_committee_date = COALESCE(EXCLUDED.referred_to_committee_date, bills.referred_to_committee_date),
+                    report_presented_date = COALESCE(EXCLUDED.report_presented_date, bills.report_presented_date),
                     status = EXCLUDED.status,
                     source_raw = EXCLUDED.source_raw,
-                    passed_ls_date = EXCLUDED.passed_ls_date,
-                    passed_rs_date = EXCLUDED.passed_rs_date,
+                    passed_ls_date = COALESCE(EXCLUDED.passed_ls_date, bills.passed_ls_date),
+                    passed_rs_date = COALESCE(EXCLUDED.passed_rs_date, bills.passed_rs_date),
                     act_no = EXCLUDED.act_no,
                     act_year = EXCLUDED.act_year,
-                    assented_date = EXCLUDED.assented_date,
+                    assented_date = COALESCE(EXCLUDED.assented_date, bills.assented_date),
                     last_seen_at = now(),
                     last_changed_at = CASE
                         WHEN bills.content_hash IS DISTINCT FROM EXCLUDED.content_hash
@@ -110,6 +121,34 @@ def upsert_bills(conn, raw_rows: list[dict]) -> list[dict]:
             """, fields)
             row = cur.fetchone()
             results.append({**row, "raw": raw})
+            # Retain source evidence and individual dated events; re-ingestion is idempotent.
+            house = fields.get("introduced_house")
+            if house not in ("Lok Sabha", "Rajya Sabha"):
+                continue
+            cur.execute("""INSERT INTO bill_source_observations
+                (bill_id,source_house,source_bill_number,source_bill_year,source_status,raw_record,record_hash)
+                VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                (row["id"],house,fields["bill_number"],fields["bill_year"],fields["status"],
+                 Json(raw),fields["content_hash"]))
+            observation_id = cur.fetchone()["id"]
+            events = (("introduced","introduced_date",house),
+                      ("passed_ls","passed_ls_date","Lok Sabha"),
+                      ("passed_rs","passed_rs_date","Rajya Sabha"),
+                      ("referred_to_committee","referred_to_committee_date",None),
+                      ("committee_report_presented","report_presented_date",None),
+                      ("assented","assented_date",None))
+            for event_type,date_field,event_house in events:
+                event_date=fields.get(date_field)
+                if event_date:
+                    cur.execute("""INSERT INTO bill_movements
+                        (bill_id,event_type,event_date,event_house,source_observation_id)
+                        VALUES (%s,%s,%s,%s,%s)
+                        ON CONFLICT DO NOTHING""",
+                        (row["id"],event_type,event_date,event_house,observation_id))
+            cur.execute("""UPDATE bills SET latest_movement_at = (
+                SELECT max(event_date)::timestamptz FROM bill_movements
+                WHERE bill_id=%s AND verification_status <> 'disputed') WHERE id=%s""",
+                (row["id"],row["id"]))
     return results
 
 
@@ -173,27 +212,13 @@ def upsert_documents(conn, bill_id: int, raw: dict):
     docs = extract_documents(raw)
     if not docs:
         return
-    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-        for doc_type, new_url, filename in docs:
-            cur.execute(
-                "SELECT source_url, extraction_status FROM bill_documents WHERE bill_id = %s AND doc_type = %s",
-                (bill_id, doc_type),
-            )
-            existing = cur.fetchone()
-
-            url_to_store = new_url
-            if existing and existing["source_url"] and existing["source_url"] != new_url:
-                url_to_store = _reconcile_url(
-                    bill_id, doc_type, existing["source_url"], existing["extraction_status"], new_url,
-                )
-
-            cur.execute("""
-                INSERT INTO bill_documents (bill_id, doc_type, source_url, original_filename)
-                VALUES (%s, %s, %s, %s)
-                ON CONFLICT (bill_id, doc_type) DO UPDATE SET
-                    source_url = EXCLUDED.source_url,
-                    original_filename = EXCLUDED.original_filename,
-                    extraction_status = CASE
-                        WHEN bill_documents.source_url IS DISTINCT FROM EXCLUDED.source_url
-                        THEN 'pending' ELSE bill_documents.extraction_status END
-            """, (bill_id, doc_type, url_to_store, filename))
+    with conn.cursor() as cur:
+        for doc_type, url, filename in docs:
+            # V2 identity includes URL: a changed source URL is a new version,
+            # never overwrite a downloaded or previously verified document.
+            cur.execute("""INSERT INTO bill_documents
+                (bill_id,doc_type,source_url,original_filename)
+                VALUES (%s,%s,%s,%s)
+                ON CONFLICT (bill_id,doc_type,source_url) DO UPDATE SET
+                    original_filename=EXCLUDED.original_filename""",
+                (bill_id,doc_type,url,filename))

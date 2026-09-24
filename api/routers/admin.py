@@ -30,7 +30,7 @@ def review_queue(admin: dict = Depends(require_admin), conn=Depends(get_conn)):
 def approve(content_id: int, admin: dict = Depends(require_admin), conn=Depends(get_conn)):
     with conn.cursor() as cur:
         cur.execute("""
-            UPDATE bill_ai_content SET review_status = 'approved', reviewed_by = %s, reviewed_at = now()
+            UPDATE bill_ai_content SET review_status = 'approved', reviewed_by = %s, reviewed_at = now(), published_at = now()
             WHERE id = %s AND review_status = 'pending_review'
             RETURNING id
         """, (admin["email"], content_id))
@@ -76,7 +76,9 @@ ENTITY_SORT_COLUMNS = {
     "bill_name": "bill_name",
     "status": "status",
     "introduced_date": "introduced_date",
-    "last_seen_at": "last_seen_at",   # recency — when ingestion last touched this bill
+    "last_seen_at": "last_seen_at",
+    "latest_movement_at": "latest_movement_at",
+    "last_changed_at": "last_changed_at",   # recency — when ingestion last touched this bill
     "bill_type": "bill_type",
     "bill_category": "bill_category",
     "ministry_name": "ministry_name",
@@ -100,26 +102,9 @@ GROUP_BY_COLUMNS = {"bill_category", "bill_type", "ministry_name", "status"}
 # nothing for either pipeline to process, so it scores 0 and sinks to the
 # bottom regardless of how important its category looks. That's the actual
 # "process the real bills first, skip the rest" behaviour.
-_CATEGORY_WEIGHT_SQL = """
-    CASE bill_category
-        WHEN 'Constitution Amendment Bill' THEN 40
-        WHEN 'Money Bill' THEN 35
-        WHEN 'Financial Bill' THEN 30
-        WHEN 'Ordinary Bill' THEN 20
-        ELSE 15
-    END
-"""
-_STATUS_WEIGHT_SQL = """
-    CASE status
-        WHEN 'Assented' THEN 15
-        WHEN 'Passed' THEN 10
-        WHEN 'Introduced' THEN 5
-        WHEN 'Under Consideration' THEN 5
-        WHEN 'Withdrawn' THEN 0
-        WHEN 'Lapsed' THEN 0
-        ELSE 3
-    END
-"""
+# Operational readiness only; no subjective legislative-category weights.
+_CATEGORY_WEIGHT_SQL = "0"
+_STATUS_WEIGHT_SQL = "0"
 
 # 'none' is a synthetic value meaning "no bill_ai_content row exists yet" —
 # not a real review_status, so it needs its own branch in the WHERE clause
@@ -130,14 +115,20 @@ AI_STATUS_VALUES = {"none", "generating", "pending_review", "approved", "rejecte
 @router.get("/entities")
 def list_entities(
     page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=200),
+    page_size: int = Query(default=20, ge=1, le=500),
     sort_by: str = Query(default="last_seen_at"),
     sort_dir: str = Query(default="desc", pattern="^(asc|desc)$"),
     group_by: str = Query(default=None, description="bill_category | bill_type | ministry_name | status"),
     q: str = Query(default=None, description="Search bill number/name"),
     ai_status: str = Query(default=None, description="Filter by AI review status, or 'none' for unsummarized bills"),
     processed_only: bool = Query(default=False, description="Only bills with at least one extracted document"),
+    link_status: str = Query(default=None, description="PDF link health: unchecked, available, broken, etc."),
+    introduced_house: str = Query(default=None),
+    movement_from: str = Query(default=None, description="ISO date YYYY-MM-DD"),
+    movement_to: str = Query(default=None, description="ISO date YYYY-MM-DD"),
     has_documents: bool = Query(default=None, description="true: only bills with linked PDFs; false: only bills with none (nothing to process)"),
+    legislative_status: str = Query(default=None, description="Passed, Pending, Assented, Lapsed, Withdrawn, Negatived or unknown"),
+    pdf_processing: str = Query(default=None, description="not_processed, partial, processed or no_documents"),
     admin: dict = Depends(require_admin), conn=Depends(get_conn),
 ):
     sort_col = ENTITY_SORT_COLUMNS.get(sort_by, "last_seen_at")
@@ -148,16 +139,48 @@ def list_entities(
     if group_by is not None and group_by not in GROUP_BY_COLUMNS:
         raise HTTPException(status_code=400, detail=f"group_by must be one of {sorted(GROUP_BY_COLUMNS)}")
 
+    from datetime import date
+    if link_status and link_status not in {"unchecked","available","broken","timeout","blocked","rate_limited","server_error","invalid_content","unknown"}:
+        raise HTTPException(400,"Invalid link_status")
+    if introduced_house and introduced_house not in {"Lok Sabha","Rajya Sabha"}:
+        raise HTTPException(400,"Invalid introduced_house")
+    try:
+        start_date=date.fromisoformat(movement_from) if movement_from else None
+        end_date=date.fromisoformat(movement_to) if movement_to else None
+    except ValueError:
+        raise HTTPException(400,"movement dates must use YYYY-MM-DD")
+    if legislative_status and legislative_status not in {"Passed", "Pending", "Assented", "Lapsed", "Withdrawn", "Negatived", "unknown"}:
+        raise HTTPException(400, "Invalid legislative_status")
+    if pdf_processing and pdf_processing not in {"not_processed", "partial", "processed", "no_documents"}:
+        raise HTTPException(400, "Invalid pdf_processing")
     params = {
+        "link_status":link_status,"introduced_house":introduced_house,
+        "movement_from":start_date,"movement_to":end_date,
         "limit": page_size, "offset": offset,
         "q": f"%{q}%" if q else None,
         "ai_status": ai_status,
         "processed_only": processed_only,
         "has_documents": has_documents,
+        "legislative_status": legislative_status,
+        "pdf_processing": pdf_processing,
     }
 
     where_sql = """
-        (%(q)s::text IS NULL OR bill_name ILIKE %(q)s OR bill_number ILIKE %(q)s)
+        (%(legislative_status)s::text IS NULL
+          OR (%(legislative_status)s = 'unknown' AND (status IS NULL OR trim(status) = ''))
+          OR lower(trim(status)) = lower(%(legislative_status)s))
+        AND (%(pdf_processing)s::text IS NULL
+          OR (%(pdf_processing)s = 'not_processed' AND document_count > 0 AND documents_extracted = 0)
+          OR (%(pdf_processing)s = 'partial' AND documents_extracted > 0 AND documents_extracted < document_count)
+          OR (%(pdf_processing)s = 'processed' AND document_count > 0 AND documents_extracted = document_count)
+          OR (%(pdf_processing)s = 'no_documents' AND document_count = 0))
+        AND
+        (%(link_status)s::text IS NULL OR EXISTS (
+            SELECT 1 FROM bill_documents health WHERE health.bill_id=id AND health.link_status=%(link_status)s))
+        AND (%(introduced_house)s::text IS NULL OR introduced_house=%(introduced_house)s)
+        AND (%(movement_from)s::date IS NULL OR latest_movement_at::date >= %(movement_from)s::date)
+        AND (%(movement_to)s::date IS NULL OR latest_movement_at::date <= %(movement_to)s::date)
+        AND (%(q)s::text IS NULL OR bill_name ILIKE %(q)s OR bill_number ILIKE %(q)s)
         AND (
             %(ai_status)s::text IS NULL
             OR (%(ai_status)s = 'none' AND ai_status IS NULL)
@@ -180,10 +203,12 @@ def list_entities(
     with conn.cursor() as cur:
         cur.execute(f"""
             WITH agg AS (
-                SELECT b.id, b.bill_number, b.bill_name, b.status, b.introduced_date, b.last_seen_at,
+                SELECT b.id, b.bill_number, b.bill_name, b.status, b.introduced_date, b.last_seen_at, b.last_changed_at, b.latest_movement_at, b.introduced_house,
                        b.bill_type, b.bill_category, b.ministry_name,
                        count(bd.id) AS document_count,
                        count(bd.id) FILTER (WHERE bd.extraction_status = 'done') AS documents_extracted,
+                       count(bd.id) FILTER (WHERE bd.link_status='available') AS available_links,
+                       count(bd.id) FILTER (WHERE bd.link_status IN ('broken','invalid_content')) AS broken_links,
                        (SELECT ac.review_status FROM bill_ai_content ac
                         WHERE ac.bill_id = b.id ORDER BY ac.generated_at DESC LIMIT 1) AS ai_status
                 FROM bills b LEFT JOIN bill_documents bd ON bd.bill_id = b.id
@@ -192,8 +217,7 @@ def list_entities(
             scored AS (
                 SELECT *,
                        CASE WHEN document_count = 0 THEN 0
-                            ELSE ({_CATEGORY_WEIGHT_SQL}) + ({_STATUS_WEIGHT_SQL})
-                                 + (CASE WHEN documents_extracted > 0 AND documents_extracted < document_count THEN 5 ELSE 0 END)
+                            ELSE (CASE WHEN documents_extracted = document_count THEN 0 ELSE 1 END)
                        END AS priority_score
                 FROM agg
             )
@@ -213,7 +237,8 @@ def list_entities(
         if bill_ids:
             cur.execute("""
                 SELECT id, bill_id, doc_type, source_url, storage_path,
-                       extraction_status, extraction_method, page_count, error_message
+                       extraction_status, extraction_method, page_count, error_message,
+                       link_status, http_status_code, last_checked_at, last_success_at, final_url, link_error
                 FROM bill_documents WHERE bill_id = ANY(%s) ORDER BY doc_type
             """, (bill_ids,))
             for doc in cur.fetchall():
@@ -221,6 +246,9 @@ def list_entities(
                     "id": doc["id"], "docType": doc["doc_type"], "sourceUrl": doc["source_url"],
                     "extractionStatus": doc["extraction_status"], "extractionMethod": doc["extraction_method"],
                     "pageCount": doc["page_count"], "errorMessage": doc["error_message"],
+                    "linkStatus":doc["link_status"],"httpStatusCode":doc["http_status_code"],
+                    "lastCheckedAt":doc["last_checked_at"],"lastSuccessAt":doc["last_success_at"],
+                    "finalUrl":doc["final_url"],"linkError":doc["link_error"],
                     "extractedTextUrl": as_text_url(doc["storage_path"]),
                 })
         for r in rows:
@@ -231,7 +259,8 @@ def list_entities(
                 SELECT b.id,
                        count(bd.id) AS document_count,
                        count(bd.id) FILTER (WHERE bd.extraction_status = 'done') AS documents_extracted,
-                       b.bill_name, b.bill_number,
+                       b.bill_name, b.bill_number, b.status, b.introduced_house, b.latest_movement_at,
+                       count(bd.id) FILTER (WHERE bd.link_status = %(link_status)s) AS matching_links,
                        (SELECT ac.review_status FROM bill_ai_content ac
                         WHERE ac.bill_id = b.id ORDER BY ac.generated_at DESC LIMIT 1) AS ai_status
                 FROM bills b LEFT JOIN bill_documents bd ON bd.bill_id = b.id

@@ -9,7 +9,7 @@ import {
 import { DOMAIN_META, STATUS_META, PARTY_META, FONT_SERIF } from "../context/ThemeContext.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useFollow } from "../data/socialStore.js";
-import { getCommentCount } from "../data/socialStore.js";
+
 import { initials } from "../utils.js";
 
 export function DomainBadge({ domain, dark }) {
@@ -73,7 +73,7 @@ export function FollowButton({ kind, id, t, size = "md", onDark = false }) {
 }
 
 export function CommentCountBadge({ scope, t }) {
-  const count = getCommentCount(scope);
+  const count = 0;
   if (!count) return (
     <span style={{ fontSize: 11, color: t.textMuted, display: "inline-flex", alignItems: "center", gap: 3 }}>
       <MessageSquare size={11} aria-hidden="true" />Discuss
@@ -145,7 +145,7 @@ export function DiffTable({ changes, t }) {
 
 export function SkeletonCard({ t }) {
   return (
-    <div style={{ background: t.surface, borderRadius: 12, padding: "18px 20px", border: `1px solid ${t.borderLight}` }}>
+    <div style={{ background: t.surface, borderRadius: 22, padding: "22px 24px", border: `1px solid ${t.borderLight}` }}>
       {[55, 92, 70, 40].map((w, i) => (
         <div key={i} style={{ width: `${w}%`, height: i === 1 ? 18 : 13, background: t.borderLight, borderRadius: 6, marginBottom: 10, animation: "shimmer 1.3s infinite" }} />
       ))}
@@ -172,7 +172,7 @@ export function EmptyState({ t, title = "No results found", body = "Try adjustin
       <p style={{ fontSize: 13, color: t.textMuted, margin: "0 0 18px 0" }}>{body}</p>
       {actionLabel && (
         <button onClick={onAction}
-          style={{ padding: "9px 20px", background: t.primary, color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, fontFamily: "inherit" }}>
+          style={{ padding: "9px 20px", background: t.primary, color: "#fff", border: "none", borderRadius: 13, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, fontFamily: "inherit" }}>
           <X size={14} />{actionLabel}
         </button>
       )}
@@ -189,7 +189,7 @@ export function UniversalCard({ ev, dark, t }) {
       onClick={() => navigate(`/event/${ev.id}`)}
       onKeyDown={e => { if (e.key === "Enter") navigate(`/event/${ev.id}`); }}
       onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-      style={{ background: t.surface, borderRadius: 12, padding: "18px 20px", border: `1px solid ${hov ? t.primary : t.borderLight}`, boxShadow: hov ? t.shadowHover : t.shadow, cursor: "pointer", transform: hov ? "translateY(-2px)" : "translateY(0)", transition: "all 0.2s cubic-bezier(.4,0,.2,1)" }}>
+      style={{ background: t.surface, borderRadius: 22, padding: "22px 24px", border: `1px solid ${hov ? t.primary : t.borderLight}`, boxShadow: hov ? t.shadowHover : t.shadow, cursor: "pointer", transform: hov ? "translateY(-2px)" : "translateY(0)", transition: "all 0.2s cubic-bezier(.4,0,.2,1)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", marginBottom: 10 }}>
         <DomainBadge domain={ev.domain} dark={dark} />
         <StatusBadge status={ev.status} dark={dark} />
@@ -226,7 +226,7 @@ export function UniversalCard({ ev, dark, t }) {
         </span>
       </div>
       <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${t.borderLight}` }}>
-        <CommentCountBadge scope={`event:${ev.id}`} t={t} />
+        <span style={{fontSize:11,color:t.textMuted}}>{ev.commentCount ?? 0} comments</span>
       </div>
     </div>
   );
@@ -356,7 +356,7 @@ export function TopBar({ t, dark, toggle }) {
   });
 
   return (
-    <div style={{ background: t.topbar, borderBottom: `1px solid ${t.topbarBorder}`, position: "sticky", top: 0, zIndex: 100 }}>
+    <div style={{ background: "linear-gradient(110deg,#111d32,#172f59)", borderBottom: `1px solid ${t.topbarBorder}`, position: "sticky", top: 0, zIndex: 100 }}>
       <div style={{ height: 56, display: "flex", alignItems: "center", padding: "0 20px", gap: 14 }}>
         <Link to="/" style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, textDecoration: "none" }}>
           <div style={{ width: 30, height: 30, borderRadius: 7, background: "linear-gradient(135deg,#3B82F6,#0EA5E9)", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -374,7 +374,7 @@ export function TopBar({ t, dark, toggle }) {
         <form onSubmit={submitSearch} style={{ flex: 1, maxWidth: 380, position: "relative" }}>
           <Search size={14} aria-hidden="true" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.38)", pointerEvents: "none" }} />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search bills, schemes, judgments..."
-            style={{ width: "100%", padding: "7px 12px 7px 34px", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 8, color: "#fff", fontSize: 13, outline: "none", boxSizing: "border-box", fontFamily: "inherit", transition: "border 0.18s, background 0.18s" }}
+            style={{ width: "100%", padding: "7px 12px 7px 34px", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 14, color: "#fff", fontSize: 13, outline: "none", boxSizing: "border-box", fontFamily: "inherit", transition: "border 0.18s, background 0.18s" }}
             onFocus={e => { e.target.style.borderColor = "rgba(59,130,246,0.6)"; e.target.style.background = "rgba(255,255,255,0.12)"; }}
             onBlur={e => { e.target.style.borderColor = "rgba(255,255,255,0.14)"; e.target.style.background = "rgba(255,255,255,0.08)"; }} />
         </form>

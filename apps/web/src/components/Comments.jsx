@@ -21,13 +21,11 @@ export default function CommentSection({ scope, t, dark }) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  function submit(e) {
+  async function submit(e) {
     e.preventDefault();
     if (!draft.trim()) { setError("Write something before posting."); return; }
     if (draft.trim().length > 600) { setError("Keep comments under 600 characters."); return; }
-    addComment(user, draft);
-    setDraft("");
-    setError("");
+    try { await addComment(user, draft); setDraft(""); setError(""); } catch(e) {setError(e.message)}
   }
 
   return (
@@ -46,8 +44,8 @@ export default function CommentSection({ scope, t, dark }) {
                 <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
                   <span style={{ fontSize: 13, fontWeight: 700, color: t.text }}>{c.authorName}</span>
                   <span style={{ fontSize: 11, color: t.textMuted }}>{timeAgo(c.createdAt)}</span>
-                  {isAuthed && user.email === c.authorEmail && (
-                    <button onClick={() => deleteComment(c.id)} aria-label="Delete comment"
+                  {isAuthed && user.id === c.authorId || user.isAdmin && (
+                    <button onClick={() => deleteComment(c.id).catch(e=>setError(e.message))} aria-label="Delete comment"
                       style={{ marginLeft: "auto", background: "none", border: "none", color: t.textMuted, cursor: "pointer", display: "flex", alignItems: "center", padding: 2 }}>
                       <Trash2 size={13} />
                     </button>

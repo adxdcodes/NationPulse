@@ -2,13 +2,16 @@ import os
 import threading
 import time
 from pathlib import Path
+from logging_setup import configure_api_logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 import config
-from routers import bills, mps, digest, auth_router, comments, follows, admin, processing
+from routers import ingestion_control, document_health, bills, mps, digest, auth_router, comments, follows, admin, processing
+
+configure_api_logging()
 
 app = FastAPI(title="NationPulse API", version="1.0.0")
 
@@ -69,7 +72,9 @@ app.include_router(auth_router.router)
 app.include_router(comments.router)
 app.include_router(follows.router)
 app.include_router(admin.router)
+app.include_router(document_health.router)
 app.include_router(processing.router)
+app.include_router(ingestion_control.router)
 
 
 @app.get("/health")
