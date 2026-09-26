@@ -1,3 +1,4 @@
+import { CardSkeletonList } from "../components/LoadingUI.jsx";
 import { useParams, useNavigate } from "react-router-dom";
 import { useState, useMemo } from "react";
 import { Tag } from "lucide-react";
@@ -12,9 +13,9 @@ export default function TopicDetail({ dark, t }) {
   const navigate = useNavigate();
   const [filters, setFilters] = useState({ domain: "All", status: "All" });
 
-  const decoded = decodeURIComponent(topic);
+  const decoded = topic || ""; // React Router already decodes URL parameters.
   const {data,error,loading}=useLive(()=>api.listBills({topic:decoded,page_size:100}),[decoded]);
-  const EVENTS=data?.items||[];
+  const EVENTS = useMemo(() => data?.items || [], [data]);
   const info={blurb:`Approved parliamentary bills about ${decoded}.`};
 
   const filtered = useMemo(() => EVENTS.filter(ev => {
@@ -22,7 +23,7 @@ export default function TopicDetail({ dark, t }) {
     if (filters.domain !== "All" && ev.domain !== filters.domain) return false;
     if (filters.status !== "All" && ev.status !== filters.status) return false;
     return true;
-  }), [decoded, filters]);
+  }), [EVENTS, decoded, filters]);
 
   if (!info) return <NotFound t={t} />;
 
@@ -47,9 +48,11 @@ export default function TopicDetail({ dark, t }) {
           </div>
         ))}
       </div>
-      <div style={{ maxWidth: 860, margin: "0 auto", padding: "22px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
-        <div style={{ fontSize: 12, color: t.textMuted }}>{filtered.length} update{filtered.length === 1 ? "" : "s"} in {decoded}</div>
-        {!filtered.length ? (
+      <div style={{ width: "100%", maxWidth: 860, margin: "0 auto", padding: "22px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ fontSize: 12, color: t.textMuted }}>{loading ? "Loading updates…" : `${filtered.length} update${filtered.length === 1 ? "" : "s"} in ${decoded}`}</div>
+        {loading ? (
+          <CardSkeletonList count={3} />
+        ) : !filtered.length ? (
           <EmptyState t={t} actionLabel="View all topics" onAction={() => navigate("/topics")} />
         ) : filtered.map(ev => <UniversalCard key={ev.id} ev={ev} dark={dark} t={t} />)}
       </div>

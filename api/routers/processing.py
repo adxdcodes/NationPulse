@@ -29,6 +29,8 @@ import signal
 import subprocess
 import sys
 import threading
+import json
+import logging
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -39,6 +41,81 @@ from auth import require_admin
 from urls import as_text_url
 
 router = APIRouter(prefix="/admin", tags=["processing"])
+logger = logging.getLogger(__name__)
+_active_procs = {}  # job_id -> Popen; protects against killing a reused PID
+_active_lock = threading.RLock()
+_cancel_requested = set()
+
+
+def _windows_verified_job_pid(pid: int, bill_id: int, job_type: str) -> bool:
+    """Only allow cancelling a pre-restart Windows process when its command
+    line confirms that it is the exact NationPulse pipeline and bill.
+    Do not trust a database PID alone: Windows can reuse it.
+    """
+    script = (
+        "$p = Get-CimInstance Win32_Process -Filter 'ProcessId = " + str(int(pid)) + "'; "
+        "if ($p) { $p | Select-Object -ExpandProperty CommandLine | ConvertTo-Json -Compress }"
+    )
+    try:
+        result = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script],
+            capture_output=True, text=True, timeout=8, check=False,
+        )
+        if result.returncode != 0 or not result.stdout.strip():
+            return False
+        command = json.loads(result.stdout.strip())
+        if not isinstance(command, str):
+            return False
+        import re
+        bill_match = re.search(r"--bill-id(?:\s+|=)" + re.escape(str(bill_id)) + r"(?=\s|$)", command)
+        pipeline_match = re.search(r"(?:^|[\s\"'])pipeline\.py(?:[\"']|\s|$)", command, re.I)
+        type_match = ("--limit 50" in command if job_type == "pdf_extract" else "--provider" in command)
+        return bool(bill_match and pipeline_match and type_match)
+    except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
+        logger.warning("Could not verify Windows PID %s: %s", pid, exc)
+        return False
+
+
+def _terminate_job_process(job_id: int, row: dict) -> None:
+    """Terminate a verified pipeline process, including its Windows children.
+    Missing/dead processes are treated as already stopped, never as HTTP 500.
+    """
+    pid = row["pid"]
+    if not pid:
+        return
+    with _active_lock:
+        proc = _active_procs.get(job_id)
+    if proc is not None:
+        if proc.pid != pid:
+            raise HTTPException(409, "Stored job PID does not match its live process.")
+        if proc.poll() is not None:
+            return
+    elif os.name == "nt":
+        if not _windows_verified_job_pid(pid, row["bill_id"], row["job_type"]):
+            # A stale PID may now belong to an unrelated application. Never kill it.
+            raise HTTPException(409, "Cannot verify this job's process. It may have already exited; restart the API or check the job PID before retrying.")
+    else:
+        # A PID in the database alone is not proof of process ownership.
+        raise HTTPException(409, "This job belongs to a previous API session; cannot safely signal an unverified PID.")
+
+    if os.name == "nt":
+        result = subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"],
+                                capture_output=True, text=True, timeout=15, check=False)
+        if result.returncode != 0:
+            if proc is not None and proc.poll() is not None:
+                return
+            detail = (result.stderr or result.stdout).strip()
+            if "not found" in detail.lower() or "not running" in detail.lower():
+                return
+            raise HTTPException(409, f"Windows could not stop the job: {detail[:300]}")
+    else:
+        try:
+            os.killpg(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            return
+        except OSError as exc:
+            raise HTTPException(409, f"Could not stop the job process: {exc}") from exc
+
 
 
 def _create_job_row(conn, bill_id: int, job_type: str, admin_id: int):
@@ -83,6 +160,12 @@ def _watch_proc(job_id: int, proc: subprocess.Popen):
     this is what makes job status accurate even when the child dies in a
     way it could never have self-reported (see module docstring)."""
     returncode = proc.wait()
+    with _active_lock:
+        cancelled = job_id in _cancel_requested
+        _active_procs.pop(job_id, None)
+    if cancelled:
+        # Cancellation endpoint writes the terminal state and resets transient rows.
+        return
     if returncode == 0:
         _mark_job_finished(job_id, "completed")
     else:
@@ -130,6 +213,8 @@ def _spawn(job_id: int, bill_id: int, job_type: str, document_id: int | None = N
     finally:
         checkin_conn(conn)
 
+    with _active_lock:
+        _active_procs[job_id] = proc
     threading.Thread(target=_watch_proc, args=(job_id, proc), daemon=True).start()
     return proc.pid
 
@@ -211,11 +296,16 @@ def cancel_job(job_id: int, admin: dict = Depends(require_admin), conn=Depends(g
         if row["status"] not in ("queued", "running"):
             raise HTTPException(status_code=400, detail=f"Job already {row['status']}, nothing to cancel.")
 
-        if row["pid"]:
-            try:
-                os.kill(row["pid"], signal.SIGTERM)
-            except ProcessLookupError:
-                pass  # it already finished on its own between the check above and here
+        # Record cancellation intent before stopping the process, so the
+        # watcher cannot race to mark an intentionally stopped job as failed.
+        with _active_lock:
+            _cancel_requested.add(job_id)
+        try:
+            _terminate_job_process(job_id, row)
+        except Exception:
+            with _active_lock:
+                _cancel_requested.discard(job_id)
+            raise
 
         # Guarded the same way _mark_job_finished is — the watcher thread's
         # proc.wait() will also unblock once SIGTERM lands and may race to
@@ -248,6 +338,8 @@ def cancel_job(job_id: int, admin: dict = Depends(require_admin), conn=Depends(g
                 WHERE bill_id = %s AND review_status = 'generating'
             """, (row["bill_id"],))
 
+    # Flush the cancellation transaction before the UI's next jobs poll.
+    conn.commit()
     return {"jobId": job_id, "status": "cancelled"}
 
 

@@ -1,22 +1,24 @@
+import { lazy, Suspense } from "react";
+import { PagePreloader } from "./components/LoadingUI.jsx";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { ThemeProvider, useTheme, T } from "./context/ThemeContext.jsx";
 import { AuthProvider, useAuth } from "./context/AuthContext.jsx";
 import { TopBar } from "./components/UI.jsx";
 import { ErrorBoundary } from "./pages/ErrorPages.jsx";
 import NotFound from "./pages/ErrorPages.jsx";
-import Home from "./pages/Home.jsx";
-import EventDetail from "./pages/EventDetail.jsx";
-import SearchResults from "./pages/SearchResults.jsx";
-import Topics from "./pages/Topics.jsx";
-import TopicDetail from "./pages/TopicDetail.jsx";
-import MP from "./pages/MP.jsx";
-import Digest from "./pages/Digest.jsx";
-import About from "./pages/About.jsx";
-import Login from "./pages/Login.jsx";
-import Signup from "./pages/Signup.jsx";
-import Profile from "./pages/Profile.jsx";
-import AdminLogin from "./pages/admin/AdminLogin.jsx";
-import AdminLayout from "./pages/admin/AdminLayout.jsx";
+const Home = lazy(() => import("./pages/Home.jsx"));
+const EventDetail = lazy(() => import("./pages/EventDetail.jsx"));
+const SearchResults = lazy(() => import("./pages/SearchResults.jsx"));
+const Topics = lazy(() => import("./pages/Topics.jsx"));
+const TopicDetail = lazy(() => import("./pages/TopicDetail.jsx"));
+const MP = lazy(() => import("./pages/MP.jsx"));
+const Digest = lazy(() => import("./pages/Digest.jsx"));
+const About = lazy(() => import("./pages/About.jsx"));
+const Login = lazy(() => import("./pages/Login.jsx"));
+const Signup = lazy(() => import("./pages/Signup.jsx"));
+const Profile = lazy(() => import("./pages/Profile.jsx"));
+const AdminLogin = lazy(() => import("./pages/admin/AdminLogin.jsx"));
+const AdminLayout = lazy(() => import("./pages/admin/AdminLayout.jsx"));
 
 // Admin is no longer a separate mock-password flow — it's the same real
 // login as everyone else, gated by user.isAdmin (set server-side; see
@@ -38,6 +40,8 @@ function RequireAuth({ children }) {
 
 function App() {
   const { dark, toggle } = useTheme();
+  const location = useLocation();
+  const isAdminPage = location.pathname.startsWith("/admin");
   const t = dark ? T.dark : T.light;
 
   return (
@@ -58,7 +62,8 @@ function App() {
           }
         `}</style>
         <TopBar t={t} dark={dark} toggle={toggle} />
-        <Routes>
+        <div className={isAdminPage ? "np-route-frame np-route-frame--admin" : "np-route-frame np-route-frame--public"}>
+        <Suspense fallback={<PagePreloader t={t} />}><Routes>
           <Route path="/" element={<Home dark={dark} t={t} />} />
           <Route path="/event/:id" element={<EventDetail dark={dark} t={t} />} />
           <Route path="/search" element={<SearchResults dark={dark} t={t} />} />
@@ -78,7 +83,8 @@ function App() {
           <Route path="/admin" element={<RequireAdmin><AdminLayout dark={dark} t={t} /></RequireAdmin>} />
 
           <Route path="*" element={<NotFound t={t} />} />
-        </Routes>
+        </Routes></Suspense>
+        </div>
       </div>
     </ErrorBoundary>
   );

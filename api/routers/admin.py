@@ -274,6 +274,30 @@ def list_entities(
             "sort_by": sort_by, "sort_dir": sort_dir, "group_by": group_by}
 
 
+@router.get("/settings/auto-approve")
+def get_auto_approve(admin: dict = Depends(require_admin), conn=Depends(get_conn)):
+    with conn.cursor() as cur:
+        cur.execute("SELECT auto_approve_ai, updated_at FROM admin_processing_settings WHERE id = 1")
+        row = cur.fetchone()
+    if not row:
+        raise HTTPException(status_code=503, detail="Run api/auto_approve_migration.sql first.")
+    return {"enabled": row["auto_approve_ai"], "updatedAt": row["updated_at"]}
+
+
+@router.put("/settings/auto-approve")
+def set_auto_approve(body: dict, admin: dict = Depends(require_admin), conn=Depends(get_conn)):
+    if type(body.get("enabled")) is not bool:
+        raise HTTPException(status_code=422, detail="enabled must be a boolean")
+    with conn.cursor() as cur:
+        cur.execute("""UPDATE admin_processing_settings
+            SET auto_approve_ai = %s, updated_by = %s, updated_at = NOW()
+            WHERE id = 1 RETURNING auto_approve_ai""", (body["enabled"], admin["email"]))
+        row = cur.fetchone()
+    if not row:
+        raise HTTPException(status_code=503, detail="Run api/auto_approve_migration.sql first.")
+    return {"enabled": row["auto_approve_ai"]}
+
+
 @router.get("/dashboard")
 def dashboard(admin: dict = Depends(require_admin), conn=Depends(get_conn)):
     with conn.cursor() as cur:

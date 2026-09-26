@@ -88,18 +88,36 @@ export function CommentCountBadge({ scope, t }) {
 
 export function BillStepper({ stages, stage, dark, t }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", overflowX: "auto", paddingBottom: 4 }}>
+    <div style={{ display: "flex", alignItems: "flex-start", overflowX: "auto", padding: "8px 4px 6px" }}>
       {stages.map((s, i) => {
-        const done = i < stage, active = i === stage;
+        const done = i < stage;
+        const active = i === stage;
+        const circleColor = done ? "#65BF70" : active ? "#94B7FA" : t.border;
         return (
-          <div key={s} style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-              <div style={{ width: 26, height: 26, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, border: "2px solid", transition: "all 0.25s", background: active ? t.primary : done ? "#22C55E" : "transparent", borderColor: active ? t.primary : done ? "#22C55E" : t.border, color: (active || done) ? "#fff" : t.textMuted, boxShadow: active ? `0 0 0 4px ${dark ? "rgba(59,130,246,0.2)" : "rgba(30,58,95,0.12)"}` : "none" }}>
-                {active ? <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#fff", display: "block" }} /> : done ? <Check size={11} /> : i + 1}
+          <div key={`${s}-${i}`} style={{ display: "flex", alignItems: "flex-start", flexShrink: 0 }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 7, width: 76, flexShrink: 0 }}>
+              <div style={{
+                width: 32, height: 32, minWidth: 32, minHeight: 32,
+                boxSizing: "border-box", flexShrink: 0, borderRadius: "50%",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                border: `2px solid ${circleColor}`,
+                background: done ? "#65BF70" : active ? "#94B7FA" : "transparent",
+                color: done || active ? "#fff" : t.textMuted,
+                // A round shadow, not an outline or clipped overlay, keeps the active halo circular.
+                boxShadow: active ? `0 0 0 5px ${dark ? "rgba(148,183,250,.20)" : "rgba(65,113,190,.16)"}` : "none",
+                transition: "background .25s, border-color .25s, box-shadow .25s",
+              }}>
+                {done ? <Check size={17} strokeWidth={3} aria-hidden="true" />
+                  : active ? <span style={{ width: 10, height: 10, flexShrink: 0, borderRadius: "50%", background: "#fff" }} />
+                  : <span style={{ fontSize: 12, fontWeight: 700 }}>{i + 1}</span>}
               </div>
-              <span style={{ fontSize: 8, textAlign: "center", maxWidth: 52, lineHeight: 1.2, color: (done || active) ? t.primary : t.textMuted, fontWeight: (done || active) ? 600 : 400 }}>{s}</span>
+              <span style={{ fontSize: 11, textAlign: "center", width: 76, lineHeight: 1.3,
+                color: done || active ? t.primary : t.textMuted, fontWeight: done || active ? 700 : 400 }}>
+                {s}
+              </span>
             </div>
-            {i < stages.length - 1 && <div style={{ width: 22, height: 2, margin: "0 2px", marginBottom: 18, flexShrink: 0, borderRadius: 99, background: i < stage ? "#22C55E" : t.borderLight, transition: "background 0.3s" }} />}
+            {i < stages.length - 1 && <div style={{ width: 36, height: 3, margin: "15px 2px 0", flexShrink: 0,
+              borderRadius: 99, background: done ? "#65BF70" : t.borderLight }} />}
           </div>
         );
       })}

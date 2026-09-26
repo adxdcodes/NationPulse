@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { DetailSkeleton } from "../components/LoadingUI.jsx";
+import { useEffect, useState, useCallback } from "react";
 import {api} from "../api/client.js";
 import {useLive,LiveError} from "../api/useLive.jsx";
 import { useParams, useNavigate, Link } from "react-router-dom";
@@ -10,16 +11,19 @@ import {
 import { FONT_SERIF } from "../context/ThemeContext.jsx";
 import { DomainBadge, StatusBadge, BillStepper, BudgetBar, DiffTable, Section, Footer, FollowButton } from "../components/UI.jsx";
 import CommentSection from "../components/Comments.jsx";
+import OfficialSourcesModal from "../components/OfficialSourcesModal.jsx";
 import NotFound from "./ErrorPages.jsx";
 
 export default function EventDetail({ dark, t }) {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [sourcesOpen, setSourcesOpen] = useState(false);
+  const closeSources = useCallback(() => setSourcesOpen(false), []);
   const {data:ev,error,loading}=useLive(()=>api.getBill(id),[id]);
 
   useEffect(() => { window.scrollTo({ top: 0, behavior: "smooth" }); }, [id]);
 
-  if (loading) return <div style={{padding:24}}>Loading bill…</div>;
+  if (loading) return <DetailSkeleton />;
   if (error) return <LiveError error={error}/>;
   if (!ev) return <NotFound t={t} />;
 
@@ -89,11 +93,12 @@ export default function EventDetail({ dark, t }) {
         <CommentSection scope={`event:${ev.id}`} t={t} dark={dark} />
         <div style={{ textAlign: "center", paddingTop: 12, fontSize: 12, color: t.textMuted, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
           <Database size={12} />Official government records ·{" "}
-          <a href="https://sansad.in" target="_blank" rel="noreferrer" style={{ color: t.primary, fontWeight: 600, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 3 }}>
+          <button type="button" onClick={() => setSourcesOpen(true)} style={{ color: t.primary, fontWeight: 600, fontSize: 12, background: "none", border: "none", padding: 0, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 3, fontFamily: "inherit" }}>
             View source<ExternalLink size={12} />
-          </a>
+          </button>
         </div>
       </div>
+      <OfficialSourcesModal open={sourcesOpen} onClose={closeSources} documents={ev.documents || []} title={ev.title} t={t} />
       <Footer t={t} />
     </div>
   );

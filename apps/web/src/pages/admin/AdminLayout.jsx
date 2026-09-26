@@ -99,12 +99,118 @@ function usePolling(fetchFn, { intervalMs = 2000, active = true, deps = [] }) {
 
 function Dashboard({ t, dark, token }) {
   const { data, error, refresh } = usePolling(() => api.adminDashboard(token), { intervalMs: 8000 });
+  const [linkBatch, setLinkBatch] = useState(null);
+  const [linkBatchError, setLinkBatchError] = useState("");
+  const [linkBatchBusy, setLinkBatchBusy] = useState(false);
+  const [confirmLinkCheck, setConfirmLinkCheck] = useState(false);
+  useEffect(() => {
+    let mounted = true;
+    const refresh = () => api.allDocumentLinksStatus(token).then(data => { if (mounted) setLinkBatch(data); }).catch(() => {});
+    refresh();
+    const timer = setInterval(refresh, 2500);
+    return () => { mounted = false; clearInterval(timer); };
+  }, [token]);
+  async function startGlobalLinkCheck() {
+    setConfirmLinkCheck(false);
+    setLinkBatchBusy(true); setLinkBatchError("");
+    try { setLinkBatch(await api.checkAllDocumentLinks(token)); }
+    catch (e) { setLinkBatchError(e.message || "Unable to start link check"); }
+    finally { setLinkBatchBusy(false); }
+  }
+  async function stopGlobalLinkCheck() {
+    setLinkBatchBusy(true);
+    try { setLinkBatch(await api.cancelAllDocumentLinks(token)); }
+    catch (e) { setLinkBatchError(e.message || "Unable to stop link check"); }
+    finally { setLinkBatchBusy(false); }
+  }
+  const [autoApprove, setAutoApprove] = useState(null);
+  const [confirmToggle, setConfirmToggle] = useState(false);
+  const [savingToggle, setSavingToggle] = useState(false);
+  const [toggleError, setToggleError] = useState("");
+  useEffect(() => {
+    let live = true;
+    api.getAutoApprove(token).then(r => { if (live) setAutoApprove(r.enabled); })
+      .catch(e => { if (live) setToggleError(e.message || "Could not load auto-approval setting"); });
+    return () => { live = false; };
+  }, [token]);
+  const saveAutoApprove = async () => {
+    setSavingToggle(true);
+    setToggleError("");
+    try {
+      const result = await api.setAutoApprove(token, !autoApprove);
+      setAutoApprove(result.enabled);
+      setConfirmToggle(false);
+      refresh();
+    } catch (e) { setToggleError(e.message || "Unable to change auto-approval"); }
+    finally { setSavingToggle(false); }
+  };
+
 
   if (error) return <ConnectionError t={t} message={error} onRetry={refresh} />;
   if (!data) return <p style={{ fontSize: 13, color: t.textMuted }}>Loading…</p>;
 
   return (
     <div>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12, padding:"12px 16px", marginBottom:16, background:t.surface, border:`1px solid ${t.borderLight}`, borderRadius:12 }}>
+        <div>
+          <div style={{ fontSize:13, fontWeight:700, color:t.text }}>AI summary auto-approval</div>
+          <div style={{ fontSize:11, color:t.textMuted, marginTop:4 }}>When enabled, newly generated summaries are published without manual review.</div>
+        </div>
+        <button type="button" role="switch" aria-checked={!!autoApprove} disabled={autoApprove===null || savingToggle}
+          onClick={() => setConfirmToggle(true)}
+          style={{ display:"flex", alignItems:"center", gap:9, border:`1px solid ${autoApprove ? "#16a34a" : t.borderLight}`, borderRadius:99, padding:"7px 12px", background:autoApprove ? (dark ? "#143325" : "#eaf9ef") : t.surface, color:autoApprove ? (dark ? "#86efac" : "#166534") : t.textMuted, cursor:autoApprove===null ? "wait" : "pointer", fontWeight:700, fontSize:12 }}>
+          <span aria-hidden="true" style={{ width:29, height:17, borderRadius:20, background:autoApprove ? "#22c55e" : "#64748b", padding:2, display:"flex", alignItems:"center", justifyContent:autoApprove ? "flex-end" : "flex-start" }}>
+            <span style={{ width:13, height:13, borderRadius:"50%", background:"white" }}/>
+          </span>
+          {autoApprove===null ? "Loading…" : autoApprove ? "ON" : "OFF"}
+        </button>
+        {toggleError && <div role="alert" style={{ width:"100%", fontSize:12, color:t.danger }}>{toggleError}</div>}
+      </div>
+      {confirmToggle && <div role="presentation" style={{ position:"fixed", inset:0, zIndex:9999, background:"rgba(4,10,25,.72)", display:"flex", alignItems:"center", justifyContent:"center", padding:20 }} onMouseDown={e => { if(e.target===e.currentTarget && !savingToggle) setConfirmToggle(false); }}>
+        <div role="alertdialog" aria-modal="true" aria-labelledby="auto-approve-title" aria-describedby="auto-approve-desc" style={{ width:"100%", maxWidth:440, borderRadius:18, background:t.surface, border:`1px solid ${t.borderLight}`, padding:24, boxShadow:"0 24px 70px #0007" }}>
+          <h3 id="auto-approve-title" style={{ color:t.text, margin:"0 0 12px", fontSize:19 }}>{autoApprove ? "Disable" : "Enable"} AI auto-approval?</h3>
+          <p id="auto-approve-desc" style={{ color:t.textMuted, lineHeight:1.6, fontSize:13, margin:"0 0 22px" }}>{autoApprove ? "New AI summaries will return to the manual review queue. Already published summaries stay published." : "Every newly completed AI summary will be approved and appear in the public feed without manual review. Existing pending reviews will not be changed."}</p>
+          <div style={{ display:"flex", justifyContent:"flex-end", gap:10 }}>
+            <button disabled={savingToggle} onClick={() => setConfirmToggle(false)} style={{ padding:"9px 16px", borderRadius:9, background:"transparent", border:`1px solid ${t.borderLight}`, color:t.text, cursor:"pointer" }}>Cancel</button>
+            <button disabled={savingToggle} onClick={saveAutoApprove} style={{ padding:"9px 16px", borderRadius:9, background:autoApprove ? "#64748b" : "#2563eb", border:0, color:"white", fontWeight:700, cursor:"pointer" }}>{savingToggle ? "Saving…" : autoApprove ? "Disable" : "Enable & auto-publish"}</button>
+          </div>
+        </div>
+      </div>}
+      <section style={{background:t.surface,border:`1px solid ${t.borderLight}`,borderRadius:14,padding:"18px 20px",marginBottom:18,boxShadow:t.shadow}} aria-label="Document link verification">
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:16,flexWrap:"wrap"}}>
+          <div style={{display:"flex",alignItems:"flex-start",gap:12,minWidth:0,flex:"1 1 260px"}}>
+            <span style={{display:"grid",placeItems:"center",width:38,height:38,flexShrink:0,borderRadius:11,background:dark?"#233858":"#eaf2ff",color:t.primary}}><RefreshCw size={18}/></span>
+            <div>
+              <div style={{fontWeight:750,fontSize:14,color:t.text}}>Official document link checker</div>
+              <div style={{fontSize:12,color:t.textMuted,marginTop:5,lineHeight:1.5}}>Verify original source links across all bills. PDF extraction and AI jobs are unaffected.</div>
+            </div>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:9,flexWrap:"wrap"}}>
+            {["running","cancelling"].includes(linkBatch?.status) && <button type="button" onClick={stopGlobalLinkCheck} disabled={linkBatchBusy||linkBatch?.status==="cancelling"}
+              style={{padding:"10px 14px",border:`1px solid ${t.borderLight}`,borderRadius:10,background:"transparent",color:t.text,fontSize:12,fontWeight:700,cursor:"pointer",opacity:linkBatchBusy?.6:1}}>Stop checking</button>}
+            <button type="button" onClick={()=>setConfirmLinkCheck(true)} disabled={linkBatchBusy||["running","cancelling"].includes(linkBatch?.status)}
+              style={{display:"inline-flex",alignItems:"center",gap:8,padding:"10px 15px",border:"none",borderRadius:10,background:t.primary,color:"#fff",fontSize:12,fontWeight:750,cursor:"pointer",opacity:linkBatchBusy||["running","cancelling"].includes(linkBatch?.status)?.55:1}}>
+              <RefreshCw size={14}/>Check all links
+            </button>
+          </div>
+        </div>
+        {linkBatch && linkBatch.status!=="idle" && <div style={{marginTop:16,padding:"12px 14px",background:dark?"#17243a":"#f1f5fc",borderRadius:10,border:`1px solid ${t.borderLight}`}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,fontSize:12,color:t.textSub,flexWrap:"wrap"}}><strong style={{color:t.text,textTransform:"capitalize"}}>{linkBatch.status?.replaceAll("_"," ")}</strong><span>{linkBatch.checked||0} / {linkBatch.total||0} checked</span></div>
+          <div role="progressbar" aria-label="Document link verification progress" aria-valuemin={0} aria-valuemax={linkBatch.total||1} aria-valuenow={linkBatch.checked||0} style={{height:5,background:dark?"#34435e":"#dbe5f5",borderRadius:99,overflow:"hidden",marginTop:10}}><div style={{height:"100%",width:`${linkBatch.total?Math.min(100,100*(linkBatch.checked||0)/linkBatch.total):0}%`,background:t.primary,transition:"width .25s ease",borderRadius:99}}/></div>
+          {!!Object.keys(linkBatch.results||{}).length && <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:10}}>{Object.entries(linkBatch.results||{}).map(([key,count])=><span key={key} style={{fontSize:11,padding:"5px 9px",borderRadius:7,background:t.surface,border:`1px solid ${t.borderLight}`,color:t.textSub}}>{key.replaceAll("_"," ")}: <strong style={{color:t.text}}>{count}</strong></span>)}</div>}
+        </div>}
+        {(linkBatchError||linkBatch?.error) && <div role="alert" style={{marginTop:10,color:t.danger,fontSize:12}}>{linkBatchError||linkBatch?.error}</div>}
+      </section>
+      {confirmLinkCheck && <div role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget&&!linkBatchBusy)setConfirmLinkCheck(false);}} style={{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20,background:"rgba(4,10,25,.72)"}}>
+        <div role="alertdialog" aria-modal="true" aria-labelledby="link-check-title" aria-describedby="link-check-desc" style={{width:"100%",maxWidth:450,padding:24,background:t.surface,border:`1px solid ${t.borderLight}`,borderRadius:18,boxShadow:"0 24px 70px #0007"}}>
+          <h3 id="link-check-title" style={{margin:"0 0 10px",color:t.text,fontSize:19}}>Check all official document links?</h3>
+          <p id="link-check-desc" style={{margin:"0 0 22px",color:t.textMuted,fontSize:13,lineHeight:1.65}}>This checks original document URLs across every bill, not just this dashboard. It may take a while and some official sites may restrict automated access.</p>
+          <div style={{display:"flex",justifyContent:"flex-end",gap:10,flexWrap:"wrap"}}>
+            <button type="button" onClick={()=>setConfirmLinkCheck(false)} disabled={linkBatchBusy} style={{padding:"10px 15px",borderRadius:10,background:"transparent",border:`1px solid ${t.borderLight}`,color:t.text,cursor:"pointer"}}>Cancel</button>
+            <button type="button" onClick={startGlobalLinkCheck} disabled={linkBatchBusy} style={{padding:"10px 15px",borderRadius:10,background:t.primary,border:0,color:"#fff",fontWeight:700,cursor:"pointer"}}>{linkBatchBusy?"Starting…":"Start checking"}</button>
+          </div>
+        </div>
+      </div>}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 22 }}>
         <StatCard label="Pending review" val={data.pendingReview} color="#D97706" Icon={Clock} t={t} />
         <StatCard label="Published" val={data.published} color="#15803D" Icon={CircleCheck} t={t} />
@@ -754,7 +860,7 @@ function Queue({ t, dark, token }) {
 
 // ---------- Published (read-only; simplified from the old mock's Feed Manager) ----------
 
-function Published({ t, dark, token }) {
+function Published({ t, dark, token, onOpenBill }) {
   const [publishedPage,setPublishedPage] = useState(1);
   const { data, error, refresh } = usePolling(() => api.adminEntities(token, { page:publishedPage,page_size:50,ai_status:"approved" }), { intervalMs: 8000, deps:[publishedPage] });
   if (error) return <ConnectionError t={t} message={error} onRetry={refresh} />;
@@ -768,11 +874,12 @@ function Published({ t, dark, token }) {
       </p>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         {published.map(bill => (
-          <div key={bill.id} style={{ background: t.surface, border: `1px solid ${t.borderLight}`, borderRadius: 10, padding: "14px 16px" }}>
+          <button type="button" key={bill.id} onClick={() => onOpenBill(bill.id)} aria-label={`Preview ${bill.bill_name} on the public feed`} style={{ background: t.surface, border: `1px solid ${t.borderLight}`, borderRadius: 10, padding: "14px 16px", width:"100%", textAlign:"left", cursor:"pointer", fontFamily:"inherit", transition:"border-color .2s, transform .2s" }} onMouseEnter={e => { e.currentTarget.style.borderColor=t.primary; e.currentTarget.style.transform="translateY(-2px)"; }} onMouseLeave={e => { e.currentTarget.style.borderColor=t.borderLight; e.currentTarget.style.transform="none"; }}>
             <StatusBadge status={bill.status} dark={dark} />
             <p style={{ margin: "10px 0 0 0", fontSize: 13, fontWeight: 600, color: t.text, lineHeight: 1.4 }}>{bill.bill_name}</p>
             <p style={{ margin: "4px 0 0 0", fontSize: 11, color: t.textMuted }}>{bill.bill_number}</p>
-          </div>
+            <span style={{ display:"inline-flex", alignItems:"center", gap:5, color:t.primary, fontSize:11, fontWeight:700, marginTop:10 }}>Preview on feed <ExternalLink size={12}/></span>
+          </button>
         ))}
         {!published.length && <p style={{ fontSize: 13, color: t.textMuted }}>Nothing published yet — approve something in the Review queue.</p>}
         {data?.total > 50 && <div style={{display:"flex",gap:12,alignItems:"center"}}>
@@ -963,7 +1070,7 @@ export default function AdminLayout({ dark, t }) {
         {tab === "processing" && <BillsProcessing t={t} dark={dark} />}
         {tab === "processed" && <ProcessedBills t={t} dark={dark} />}
         {tab === "queue" && <Queue t={t} dark={dark} token={token} />}
-        {tab === "published" && <Published t={t} dark={dark} token={token} />}
+        {tab === "published" && <Published t={t} dark={dark} token={token} onOpenBill={id => navigate(`/?bill=${encodeURIComponent(id)}`)} />}
         {tab === "comparator" && <Comparator t={t} dark={dark} token={token} />}
       </main>
     </div>

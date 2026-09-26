@@ -1,12 +1,18 @@
+import { useSearchParams } from "react-router-dom";
+import PublishedBillModal from "../components/PublishedBillModal.jsx";
+import { CardSkeletonList } from "../components/LoadingUI.jsx";
 import { useState, useEffect, useMemo } from "react";
 import FeedChatbot from "../components/FeedChatbot.jsx";
 import { api } from "../api/client.js";
 import { useLive, LiveError } from "../api/useLive.jsx";
 const DOMAINS=["All","Parliament"], STATUSES=["All","Introduced","In Committee","Passed","Enacted","Withdrawn"];
 import { DOMAIN_META } from "../context/ThemeContext.jsx";
-import { FilterBar, UniversalCard, SkeletonCard, EmptyState, Footer } from "../components/UI.jsx";
+import { FilterBar, UniversalCard, EmptyState, Footer } from "../components/UI.jsx";
 
 export default function Home({ dark, t }) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const previewId = searchParams.get("bill");
+  const closePreview = () => setSearchParams(prev => { const next = new URLSearchParams(prev); next.delete("bill"); return next; }, { replace:true });
   const [filters, setFilters] = useState({ domain: "All", topic: "All", status: "All" });
   const {data,loading,error}=useLive(()=>Promise.all([api.listBills({page_size:100,...filters}),api.listTopics()]),[filters.domain,filters.topic,filters.status]);
   const EVENTS=useMemo(() => data?.[0]?.items || [], [data]); const TOPICS=["All",...(data?.[1]?.items||[]).map(x=>x.name)];
@@ -25,7 +31,7 @@ export default function Home({ dark, t }) {
         <div style={{ maxWidth: 860, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 14 }}>
           <div>
             <h2 style={{ margin: "0 0 4px 0", color: "#fff", fontSize: 18, fontWeight: 700 }}>Your Parliament, clearly explained</h2>
-            <p style={{ margin: 0, fontSize: 12, color: "rgba(255,255,255,0.5)" }}>{filtered.length} updates · sorted by most recent · Explore bills and parliamentary updates</p>
+            <p style={{ margin: 0, fontSize: 12, color: "rgba(255,255,255,0.5)" }}>{loading ? "Loading" : filtered.length} updates · sorted by most recent · Explore bills and parliamentary updates</p>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {Object.entries(DOMAIN_META).map(([d, m]) => {
@@ -40,13 +46,14 @@ export default function Home({ dark, t }) {
           </div>
         </div>
       </div>
-      <LiveError error={error}/><div className="np-feed-list" style={{ maxWidth: 860, margin: "0 auto", padding: "22px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
-        {loading ? [1, 2, 3].map(i => <SkeletonCard key={i} t={t} />) : !filtered.length ? (
+      <LiveError error={error}/><div className="np-feed-list" style={{ width: "100%", maxWidth: 860, margin: "0 auto", padding: "22px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
+        {loading ? <CardSkeletonList count={3} /> : !filtered.length ? (
           <EmptyState t={t} actionLabel="Clear filters" onAction={() => setFilters({ domain: "All", topic: "All", status: "All" })} />
         ) : filtered.map(ev => <UniversalCard key={ev.id} ev={ev} dark={dark} t={t} />)}
       </div>
       <Footer t={t} />
       <FeedChatbot dark={dark} />
+      <PublishedBillModal id={previewId} onClose={closePreview} t={t} dark={dark} />
     </div>
   );
 }

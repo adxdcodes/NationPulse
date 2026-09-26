@@ -32,6 +32,9 @@ async function request(path, { method = "GET", token, body, params } = {}) {
 export const api = {
   checkDocumentLink: (token, id) => request(`/admin/documents/${id}/check-link`, {method:"POST",token}),
   checkBillLinks: (token,id) => request(`/admin/bills/${id}/check-links`, {method:"POST",token}),
+  checkAllDocumentLinks: (token) => request("/admin/documents/check-all-links", {method:"POST",token}),
+  allDocumentLinksStatus: (token) => request("/admin/documents/check-all-links/status", {token}),
+  cancelAllDocumentLinks: (token) => request("/admin/documents/check-all-links/cancel", {method:"POST",token}),
   // --- auth ---
   signup: (name, email, password) => request("/auth/signup", { method: "POST", body: { name, email, password } }),
   login: (email, password) => request("/auth/login", { method: "POST", body: { email, password } }),
@@ -66,6 +69,8 @@ export const api = {
   // --- admin: entities / dashboard ---
   adminEntities: (token, params) => request("/admin/entities", { token, params }),
   adminDashboard: (token) => request("/admin/dashboard", { token }),
+  getAutoApprove: (token) => request("/admin/settings/auto-approve", { token }),
+  setAutoApprove: (token, enabled) => request("/admin/settings/auto-approve", { method: "PUT", token, body: { enabled } }),
 
   // --- admin: bill processing (selective, cancellable) ---
   processPdf: (token, billId, documentId) => request(`/admin/bills/${billId}/process/pdf${documentId ? `?document_id=${documentId}` : ""}`, { method: "POST", token }),

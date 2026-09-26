@@ -67,3 +67,13 @@
 @media(max-width:850px){.np-admin-sidebar{width:174px!important}.np-admin-main{margin-left:174px!important;padding:18px 12px!important}.np-admin-filters{padding:12px!important}.np-admin-filters select{flex:1 1 170px}}
 @media(max-width:540px){.np-admin-sidebar{width:140px!important;padding:14px 7px!important}.np-admin-main{margin-left:140px!important;padding:12px 8px!important}.np-admin-filters{gap:8px!important}.np-admin-filters .np-admin-date-field{flex-wrap:wrap}.np-admin-filters input[type=date]{min-width:0;width:100%}}
 @media(prefers-reduced-motion:reduce){.np-admin-filters{animation:none}.np-admin-sidebar nav button:hover,.np-admin-filters .np-admin-filter-action:hover{transform:none}}
+
+
+/* Sticky footer for public routes. The footer stays at the viewport bottom
+   on short pages and moves naturally below content on long pages. */
+.np-app { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
+.np-route-frame--public { flex: 1 0 auto; display: flex; flex-direction: column; min-width: 0; }
+.np-route-frame--public > * { flex: 1 0 auto; display: flex; flex-direction: column; min-width: 0; }
+.np-route-frame--public > * > footer { margin-top: auto !important; }
+/* The admin dashboard manages its own full-height sidebar and layout. */
+.np-route-frame--admin { flex: 1 0 auto; min-height: 0; }
