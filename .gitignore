@@ -10,6 +10,7 @@ __pycache__/
 # Environment files and local secrets
 .env
 *.env
+.env.*
 !.env.example
 !**/.env.example
 !**/.env*.example
@@ -18,6 +19,7 @@ __pycache__/
 node_modules/
 dist/
 build/
+venv/
 
 # Logs and local tooling output
 *.log

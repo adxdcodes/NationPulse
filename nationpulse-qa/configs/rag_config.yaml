@@ -1,0 +1,88 @@
+# Configuration for the NationPulse Bill Q&A system (RAG pipeline).
+# Corresponds to Section III-G (RAG-Based Question Answering) of the
+# NationPulse paper, enhanced with the relevance-check / query-refinement
+# stage described in LegalRAG (Kabir et al., 2025) [b13].
+
+embedding:
+  # BAAI/bge-small-en-v1.5: fast, strong English retrieval, runs on CPU.
+  # Swap to BAAI/bge-m3 if you need multilingual (Hindi/regional language) support.
+  model_name: "BAAI/bge-small-en-v1.5"
+  device: "cpu"   # set to "cuda" if a GPU is available
+
+chunking:
+  chunk_size: 800        # characters per chunk
+  chunk_overlap: 150      # overlap between consecutive chunks
+  min_chunk_size: 50      # discard trailing fragments smaller than this
+
+vector_store:
+  backend: "supabase"
+  chunks_table: "qa_bill_chunks"
+
+retrieval:
+  top_k: 5                # chunks retrieved per query
+  use_mmr: true            # Maximal Marginal Relevance for diverse results
+  mmr_lambda: 0.7           # 1.0 = pure relevance, 0.0 = pure diversity
+  fetch_k: 15                # candidate pool size before MMR re-ranking
+
+relevance_check:
+  enabled: true            # LegalRAG-style relevance check + query refinement
+  max_refinement_iters: 2   # lowered from LegalRAG's n=3 to cut latency; raise back to 3 if accuracy matters more than speed
+
+generation:
+  # "gemini" (recommended — no local hardware needed, most reliable on
+  # precise facts), "ollama" (fast local inference), or "transformers"
+  # (raw local inference, slowest, needs the most VRAM/RAM).
+  #
+  # Gemini avoids every local-inference problem this project has hit:
+  # VRAM limits, high latency on CPU, and small-model hallucination on
+  # precise facts (hedging on stated deadlines, confusing a Bill's own
+  # clause numbers with Constitution article numbers, blending figures
+  # across two different retrieved Bills). The tradeoffs: it needs an
+  # API key, an internet connection, and has per-request cost (though
+  # the free tier is generous for a project of this size).
+  backend: "gemini"
+
+  # --- used when backend: "gemini" ---
+  # Get a free key at https://aistudio.google.com/apikey and set it as
+  # the GEMINI_API_KEY environment variable — never put the key itself
+  # in this file. See gemini_generator.py for setup instructions.
+  # Model names change as Google retires old ones (gemini-2.5-* shuts
+  # down Oct 2026) — check https://ai.google.dev/gemini-api/docs/models
+  # if this stops working.
+  gemini_model: "gemini-3.8-flash"
+
+  # --- used when backend: "ollama" ---
+  # Ollama runs a quantized (GGUF) model via llama.cpp locally and is
+  # typically 5-10x faster than raw `transformers` for the same model
+  # size on CPU or a small GPU. See ollama_generator.py for one-time setup.
+  ollama_host: "http://localhost:11434"
+  ollama_model: "qwen2.5:3b-instruct"   # run: ollama pull qwen2.5:3b-instruct
+  # (qwen2.5:1.5b-instruct is faster but noticeably weaker at careful fact
+  # extraction from legal text — prone to hedging/self-contradiction on
+  # questions with specific numbers, dates, or deadlines. Use 3B unless
+  # your machine genuinely can't handle it.)
+
+  # --- used when backend: "transformers" ---
+  # Decoder-only instruct model. Swap to a smaller model (e.g. Qwen2.5-1.5B-Instruct)
+  # if running on CPU / limited VRAM.
+  model_name: "Qwen/Qwen2.5-1.5B-Instruct"
+  device: "cpu"             # "cuda" if you have a GPU with enough VRAM
+  load_in_4bit: false         # only relevant when device: "cuda"
+
+  # --- used by all backends ---
+  max_new_tokens: 750
+  temperature: 0.1            # low temperature: factual QA, not creative writing
+  top_p: 0.9
+
+api:
+  host: "0.0.0.0"
+  port: 8000
+
+supabase:
+  # Supabase real-time database settings.
+  # Credentials should be loaded from .env: SUPABASE_URL and SUPABASE_SERVICE_KEY (or SUPABASE_KEY).
+  enabled: true
+  persist_qa: true
+  qa_table: "qa_interactions"
+  bills_table: "qa_bills"
+

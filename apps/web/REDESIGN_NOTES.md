@@ -1,11 +1,24 @@
-# NationPulse — Pulse AI visual redesign
+# NationPulse frontend redesign
 
-This ZIP contains the complete `web/` frontend source. Replace the previous web folder (keep your local `.env` values).
+The frontend uses the Cherry Blossom design system described in the
+NationPulse Frontend Redesign PRD. The default light theme uses blush,
+mint, pink and warm white surfaces with derived dark text and rose
+controls. First-time visitors follow the operating-system theme
+preference; saved choices persist.
 
-The redesign changes the actual shared theme tokens used by existing inline-styled React pages, not only CSS focus rules. Dark mode is the default for first-time visitors; existing saved theme preferences remain respected. Both themes use Pulse AI's blue palette, with rounded feed cards, blue-gradient feed header, refreshed navigation, consistent inputs and controls, and the existing floating chatbot.
+The public landing page lives at `/`. The authenticated bill feed is at
+`/bills`, with bill details at `/bills/:id`. Existing `/event/:id` links
+redirect to the matching detail page. The landing page includes an
+editorial product introduction, process steps, benefits, and recent bill
+previews when the public bills request succeeds.
 
-No backend/API contracts were changed. The chatbot remains frontend-only.
+The bill feed uses the API's normalized status values and a responsive,
+text-first multi-column layout. Bill detail pages use an editorial header,
+readable summary measure, and a sticky facts panel on desktop. Shared
+theme tokens are in `src/context/ThemeContext.jsx`; global and responsive
+styles are in `src/index.css`.
 
-Install and build: `npm ci && npm run build`; start: `npm run dev`.
-
-The React build could not run in the packaging environment because Vite dependencies were unavailable offline. Verify it in your local installation after `npm ci`.
+The backend, database, API contracts, authentication rules, and AI
+pipeline are unchanged. To run locally, install dependencies, configure
+the root Vite environment, run the API, then start Vite with `npm run
+dev`.

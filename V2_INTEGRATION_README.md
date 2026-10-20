@@ -6,7 +6,7 @@ This is an **updated source ZIP**, not a deployed application. Do not point it a
 1. Back up the original database and keep it separate.
 2. Your new empty V2 database must have been initialized with `nationpulse_v2_schema.sql` (included in `db/`).
 3. Run `db/004_v2_runtime_indexes.sql` against V2 in pgAdmin. It adds active-job and AI-generation concurrency guards, and deduplicates house-less movements.
-4. Copy each service's `.env.example` to `.env`, set `DATABASE_URL` to the new V2 database, and configure existing API/AI credentials locally. **Never include secrets in a shared ZIP.**
+4. Copy the repository-root `.env.example` to `.env` once. Set `DATABASE_URL` to the intended database and configure API/AI credentials in that same root file. **Never include secrets in a shared ZIP.**
 5. Install each service's dependencies from its `requirements.txt`; install frontend dependencies with `npm ci` in `apps/web`.
 6. Start the API, then the frontend. Run `services/ingestion-layer/pipeline.py --no-trigger` to populate bills and source URLs; PDF and AI jobs remain admin-controlled.
 

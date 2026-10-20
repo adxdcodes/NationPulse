@@ -1,104 +1,51 @@
 import { createContext, useContext, useState, useEffect } from "react";
-import {
-  Landmark, Settings2, Coins, Gavel,
-} from "lucide-react";
+import { Landmark, Settings2, Coins, Gavel } from "lucide-react";
 
 const ThemeCtx = createContext();
-
 export function ThemeProvider({ children }) {
   const [dark, setDark] = useState(() => {
     try {
-      const saved = localStorage.getItem("np-theme");
-      if (saved) return saved === "dark";
-      return true; // Pulse AI midnight theme by default; user preference still persists
-    } catch {
-      return false;
-    }
+      const saved = localStorage.getItem("np-theme-v2");
+      return saved ? saved === "dark" : (window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false);
+    } catch { return false; }
   });
-
-  useEffect(() => {
-    try { localStorage.setItem("np-theme", dark ? "dark" : "light"); } catch { /* noop */ }
-  }, [dark]);
-
-  return (
-    <ThemeCtx.Provider value={{ dark, toggle: () => setDark(d => !d) }}>
-      {children}
-    </ThemeCtx.Provider>
-  );
+  useEffect(() => { try { localStorage.setItem("np-theme-v2", dark ? "dark" : "light"); } catch { /* noop */ } }, [dark]);
+  return <ThemeCtx.Provider value={{ dark, toggle: () => setDark(d => !d) }}>{children}</ThemeCtx.Provider>;
 }
-
 export const useTheme = () => useContext(ThemeCtx);
+export const FONT_UI = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+export const FONT_SERIF = "'Source Serif 4', Georgia, Cambria, serif";
 
-// Design tokens. Editorial navy identity: Inter for UI/body, Source Serif 4
-// for headlines and long-form reading (bill titles, summaries) to give the
-// reporting content a distinct, journalistic register from the chrome
-// around it.
-export const FONT_UI = "'Inter', system-ui, sans-serif";
-export const FONT_SERIF = "'Source Serif 4', Georgia, serif";
-
-export const T = {
-  light: {
-    bg: "#F3F7FF", surface: "#FFFFFF", surface2: "#EBF2FF",
-    border: "#D5E2F6", borderLight: "#E3EBF8",
-    text: "#172844", textSub: "#425775", textMuted: "#7386A3",
-    primary: "#3568DA", primaryHover: "#2455C2",
-    accent: "#4278E8", accentBg: "#EDF4FF", accentText: "#2458C6",
-    topbar: "#142F65", topbarBorder: "#3159A0",
-    shadow: "0 7px 28px rgba(23,52,108,.065)",
-    shadowHover: "0 16px 44px rgba(24,63,142,.16)",
-    danger: "#C33557", dangerBg: "#FFF0F3",
-    success: "#18845B", successBg: "#E9F8F1",
-  },
-  dark: {
-    bg: "#0D1525", surface: "#182235", surface2: "#202D46",
-    border: "#364967", borderLight: "#2C3B55",
-    text: "#F1F5FF", textSub: "#C2CDE1", textMuted: "#94A4BF",
-    primary: "#80B4FF", primaryHover: "#A2CAFF",
-    accent: "#83BAFF", accentBg: "#233D63", accentText: "#B9D8FF",
-    topbar: "#111D32", topbarBorder: "#334766",
-    shadow: "0 8px 30px rgba(2,9,23,.19)",
-    shadowHover: "0 18px 55px rgba(0,5,19,.39)",
-    danger: "#FF8DA4", dangerBg: "#472638",
-    success: "#6DDDB0", successBg: "#1B443B",
-  },
+const palette = {
+  light: { bg: "#FFF8FC", surface: "#FFFFFF", surface2: "#EFCFE3", border: "#946273", borderLight: "#EBD3D6", text: "#2B1620", textSub: "#5C3A47", textMuted: "#7A5663", primary: "#B64F70", primaryHover: "#963D5C", accent: "#B3DEE2", accentBg: "#EAF2D7", accentText: "#35432E", topbar: "#FFFFFF", topbarBorder: "#EFCFE3", shadow: "0 1px 2px rgba(142,38,70,.08)", shadowHover: "0 8px 24px rgba(142,38,70,.14)", danger: "#A33A5D", dangerBg: "#FCE5EC", success: "#4F6638", successBg: "#EAF2D7", warning: "#76531B", warningBg: "#F8E3EA" },
+  dark: { bg: "#1F1218", surface: "#2B1A22", surface2: "#38232D", border: "#A8798C", borderLight: "#503340", text: "#FDEBEF", textSub: "#E8CBD4", textMuted: "#C6A5B2", primary: "#EA9AB2", primaryHover: "#E27396", accent: "#B3DEE2", accentBg: "#2E3B37", accentText: "#EAF2D7", topbar: "#2B1A22", topbarBorder: "#503340", shadow: "0 2px 8px rgba(0,0,0,.30)", shadowHover: "0 12px 28px rgba(0,0,0,.45)", danger: "#EA9AB2", dangerBg: "#452832", success: "#EAF2D7", successBg: "#303B2A", warning: "#EA9AB2", warningBg: "#45303A" },
 };
+export const T = { light: palette.light, dark: palette.dark };
 
-export const DOMAIN_META = {
-  Parliament: {
-    Icon: Landmark,
-    light: { bg: "#EFF6FF", text: "#1D4ED8", border: "#BFDBFE" },
-    dark: { bg: "#0C1B3A", text: "#93C5FD", border: "#1E3A5F" },
-  },
-  Executive: {
-    Icon: Settings2,
-    light: { bg: "#FFF7ED", text: "#C2410C", border: "#FED7AA" },
-    dark: { bg: "#2A1500", text: "#FB923C", border: "#431B00" },
-  },
-  Budget: {
-    Icon: Coins,
-    light: { bg: "#F0FDF4", text: "#15803D", border: "#BBF7D0" },
-    dark: { bg: "#052012", text: "#4ADE80", border: "#064E27" },
-  },
-  Judiciary: {
-    Icon: Gavel,
-    light: { bg: "#FAF5FF", text: "#7E22CE", border: "#E9D5FF" },
-    dark: { bg: "#1A0A2E", text: "#C084FC", border: "#2E1065" },
-  },
+const variants = {
+  blue: ["#EFF6FF", "#1D4ED8", "#BFDBFE", "#172554", "#93C5FD", "#1E3A8A"],
+  orange: ["#FFF7ED", "#9A3412", "#FED7AA", "#431407", "#FDBA74", "#7C2D12"],
+  green: ["#D5F3D8", "#14532D", "#A8D8AF", "#263A2C", "#D5F3D8", "#48744E"],
+  purple: ["#FAF5FF", "#6B21A8", "#E9D5FF", "#2E1065", "#D8B4FE", "#581C87"],
+  rose: ["#F2C7C7", "#8E2646", "#EBD3D6", "#503340", "#FDEBEF", "#805264"],
+  pink: ["#FFB7C5", "#2B1620", "#E48EA1", "#503340", "#FDEBEF", "#805264"],
+  red: ["#FFFFFF", "#B42318", "#B42318", "#451F25", "#FF8B82", "#9D4948"],
+  whitegreen: ["#FFFFFF", "#1F6B3A", "#1F6B3A", "#263A2C", "#D5F3D8", "#48744E"],
+  teal: ["#E7F1F4", "#285766", "#BDD4DB", "#233A42", "#C3E1E8", "#496B75"],
+  emerald: ["#E7F2EB", "#315D43", "#BCD5C4", "#263B2F", "#C8E4D1", "#4D6B56"],
+  sage: ["#EAF2D7", "#35432E", "#B8C99A", "#303B2A", "#DDECCB", "#667A4A"],
+  amber: ["#FFF3DC", "#76531B", "#E6CFA2", "#45391F", "#F3D99E", "#766441"],
+  indigo: ["#ECEEFE", "#4C528B", "#C9CCEE", "#333653", "#D3D5FA", "#5B6089"],
+  danger: ["#FBEAEA", "#8C3B3B", "#E6BDBD", "#482C2C", "#FFC3B8", "#805352"],
 };
-
+const makeMeta = (name, variant) => { const [bg, text, border, dbg, dtext, dborder] = variants[variant]; return { Icon: name, light: { bg, text, border }, dark: { bg: dbg, text: dtext, border: dborder } }; };
+export const DOMAIN_META = { Parliament: makeMeta(Landmark, "teal"), Executive: makeMeta(Settings2, "orange"), Budget: makeMeta(Coins, "emerald"), Judiciary: makeMeta(Gavel, "purple") };
 export const STATUS_META = {
-  "Passed": { light: { bg: "#F0FDF4", text: "#15803D" }, dark: { bg: "#052012", text: "#4ADE80" } },
-  "In Effect": { light: { bg: "#EFF6FF", text: "#1D4ED8" }, dark: { bg: "#0C1B3A", text: "#93C5FD" } },
-  "Pending": { light: { bg: "#FFF7ED", text: "#C2410C" }, dark: { bg: "#2A1500", text: "#FB923C" } },
-  "Under Review": { light: { bg: "#FAF5FF", text: "#7E22CE" }, dark: { bg: "#1A0A2E", text: "#C084FC" } },
-  "Struck Down": { light: { bg: "#FFF1F2", text: "#BE123C" }, dark: { bg: "#2A0A0A", text: "#FB7185" } },
-  "Announced": { light: { bg: "#ECFEFF", text: "#0E7490" }, dark: { bg: "#022C3A", text: "#67E8F9" } },
-  "Upheld": { light: { bg: "#F0FDF4", text: "#15803D" }, dark: { bg: "#052012", text: "#4ADE80" } },
+  "Introduced": makeMeta(null, "rose"), "In Committee": makeMeta(null, "indigo"),
+  "Passed": makeMeta(null, "emerald"), "Enacted": makeMeta(null, "teal"),
+  "Withdrawn": makeMeta(null, "danger"), "In Effect": makeMeta(null, "sage"),
+  "Pending": makeMeta(null, "amber"), "Under Review": makeMeta(null, "indigo"),
+  "Struck Down": makeMeta(null, "danger"), "Lapsed": makeMeta(null, "danger"),
+  "Announced": makeMeta(null, "blue"), "Upheld": makeMeta(null, "emerald"),
 };
-
-export const PARTY_META = {
-  "NDA": { light: { bg: "#FFF7ED", text: "#C2410C" }, dark: { bg: "#2A1500", text: "#FB923C" } },
-  "INDIA": { light: { bg: "#EFF6FF", text: "#1D4ED8" }, dark: { bg: "#0C1B3A", text: "#93C5FD" } },
-  "Independent": { light: { bg: "#F8FAFC", text: "#475569" }, dark: { bg: "#0A1525", text: "#94A3B8" } },
-  "Regional": { light: { bg: "#FAF5FF", text: "#7E22CE" }, dark: { bg: "#1A0A2E", text: "#C084FC" } },
-};
+export const PARTY_META = { NDA: makeMeta(null, "orange"), INDIA: makeMeta(null, "blue"), Independent: makeMeta(null, "rose"), Regional: makeMeta(null, "purple") };

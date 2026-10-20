@@ -16,7 +16,7 @@ the filesystem, plus the failure path (404 link -> retried, then marked
 
 ```bash
 pip install -r requirements.txt
-cp .env.example .env        # edit DATABASE_URL etc.
+From the repository root, copy `.env.example` to `.env` once and edit PDF settings there.
 psql "$DATABASE_URL" -f schema.sql
 ```
 

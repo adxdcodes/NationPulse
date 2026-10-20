@@ -5,13 +5,14 @@ import {
   Clock, CircleCheck, Calendar, Check, X, Edit,
   LogOut, Save, AlertCircle, FileText, Sparkles, Ban,
   RefreshCw, ChevronDown, ChevronRight, PlugZap, ArrowUp, ArrowDown,
-  Search, SearchCheck, ExternalLink, ArrowDownWideNarrow, Layers,
+  Search, SearchCheck, ExternalLink, ArrowDownWideNarrow, Layers, Menu,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext.jsx";
 import { api, ApiError } from "../../api/client.js";
 import { FONT_SERIF } from "../../context/ThemeContext.jsx";
 import { DomainBadge, StatusBadge } from "../../components/UI.jsx";
 import { AdminSelect, AdminDatePicker } from "../../components/AdminFilterControls.jsx";
+import { LoadingPanel } from "../../components/LoadingUI.jsx";
 
 const TABS = [
   { key: "dashboard", label: "Dashboard", Icon: LayoutDashboard },
@@ -147,7 +148,7 @@ function Dashboard({ t, dark, token }) {
 
 
   if (error) return <ConnectionError t={t} message={error} onRetry={refresh} />;
-  if (!data) return <p style={{ fontSize: 13, color: t.textMuted }}>Loading…</p>;
+  if (!data) return <LoadingPanel label="Loading admin settings" lines={2} />;
 
   return (
     <div>
@@ -260,7 +261,10 @@ function BillRow({ bill, t, dark, runningJobs, onProcess, onCancel, busy, select
 
   const docsDone = bill.documents_extracted === bill.document_count && bill.document_count > 0;
   const canProcessPdf = bill.document_count > 0 && !docsDone && !pdfRunning;
+  const aiDone = ["pending_review", "approved"].includes(bill.ai_status);
   const canProcessAi = bill.documents_extracted > 0 && !["generating", "pending_review", "approved"].includes(bill.ai_status) && !aiRunning;
+  const pdfActionEnabled = canProcessPdf && !busy;
+  const aiActionEnabled = canProcessAi && !busy;
 
   async function toggleExpand() {
     setExpanded(e => !e);
@@ -320,7 +324,7 @@ function BillRow({ bill, t, dark, runningJobs, onProcess, onCancel, busy, select
             </button>
           ) : (
             <button onClick={() => onProcess(bill.id, "pdf")} disabled={busy || !canProcessPdf}
-              style={{ padding: "6px 12px", background: canProcessPdf ? (dark ? "#0C1B3A" : "#EFF6FF") : t.surface2, color: canProcessPdf ? (dark ? "#93C5FD" : "#1D4ED8") : t.textMuted, border: "none", borderRadius: 7, fontSize: 11, fontWeight: 600, cursor: canProcessPdf ? "pointer" : "default", opacity: canProcessPdf ? 1 : 0.6, display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit" }}>
+              style={{ padding: "6px 12px", background: pdfActionEnabled ? (dark ? "#0C1B3A" : "#EFF6FF") : (dark ? "#303846" : "#E5E7EB"), color: pdfActionEnabled ? (dark ? "#93C5FD" : "#1D4ED8") : (dark ? "#A1A8B3" : "#6B7280"), border: "none", borderRadius: 7, fontSize: 11, fontWeight: 600, cursor: pdfActionEnabled ? "pointer" : "default", opacity: 1, display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit" }}>
               <FileText size={11} />{docsDone ? "Extracted" : "Process documents"}
             </button>
           )}
@@ -331,8 +335,8 @@ function BillRow({ bill, t, dark, runningJobs, onProcess, onCancel, busy, select
             </button>
           ) : (
             <button onClick={() => onProcess(bill.id, "ai")} disabled={busy || !canProcessAi}
-              style={{ padding: "6px 12px", background: canProcessAi ? "#16A34A" : t.surface2, color: canProcessAi ? "#fff" : t.textMuted, border: "none", borderRadius: 7, fontSize: 11, fontWeight: 600, cursor: canProcessAi ? "pointer" : "default", opacity: canProcessAi ? 1 : 0.6, display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit" }}>
-              <Sparkles size={11} />{["pending_review", "approved"].includes(bill.ai_status) ? "Summarized" : "Generate summary"}
+              style={{ padding: "6px 12px", background: aiActionEnabled ? "#16A34A" : (dark ? "#303846" : "#E5E7EB"), color: aiActionEnabled ? "#FFFFFF" : (dark ? "#A1A8B3" : "#6B7280"), border: "none", borderRadius: 7, fontSize: 11, fontWeight: 600, cursor: aiActionEnabled ? "pointer" : "default", opacity: 1, display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit" }}>
+              <Sparkles size={11} />{aiDone ? "Summarized" : "Generate summary"}
             </button>
           )}
         </div>
@@ -796,7 +800,7 @@ function Queue({ t, dark, token }) {
   }
 
   if (error) return <ConnectionError t={t} message={error} onRetry={refresh} />;
-  if (!data) return <p style={{ fontSize: 13, color: t.textMuted }}>Loading…</p>;
+  if (!data) return <LoadingPanel label="Loading review queue" lines={4} />;
   if (!data.items.length) return <p style={{ fontSize: 13, color: t.textMuted }}>Nothing waiting for review.</p>;
 
   return data.items.map(item => (
@@ -1024,6 +1028,7 @@ export default function AdminLayout({ dark, t }) {
   const navigate = useNavigate();
   const { token, user, logout } = useAuth();
   const [tab, setTab] = useState("processing");
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   function handleLogout() {
     logout();
@@ -1033,28 +1038,33 @@ export default function AdminLayout({ dark, t }) {
   return (
     <div className="np-admin-shell" style={{ display: "flex", minHeight: "calc(100vh - 56px)", alignItems: "flex-start" }}>
       <style>{`@keyframes np-pulse { 0%,100%{opacity:1} 50%{opacity:.3} }`}</style>
-      <aside className="np-admin-sidebar" style={{ width: 210, flexShrink: 0, borderRight: `1px solid ${t.borderLight}`, background: t.surface, padding: "20px 12px", display: "flex", flexDirection: "column", position: "fixed", top: 56, bottom: 0, left: 0, height: "calc(100dvh - 56px)", maxHeight: "calc(100dvh - 56px)", overflow: "hidden", zIndex: 40 }}>
+      {mobileNavOpen && <button className="np-admin-scrim" type="button" aria-label="Close admin navigation" onClick={() => setMobileNavOpen(false)} />}
+      <aside className={`np-admin-sidebar${mobileNavOpen ? " np-admin-sidebar--open" : ""}`} style={{ width: 210, flexShrink: 0, borderRight: `1px solid ${t.borderLight}`, background: t.surface, padding: "20px 12px", display: "flex", flexDirection: "column", position: "fixed", top: 56, bottom: 0, left: 0, height: "calc(100dvh - 56px)", maxHeight: "calc(100dvh - 56px)", overflow: "hidden", zIndex: 40 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 8px", marginBottom: 4 }}>
           <Shield size={18} color={t.primary} aria-hidden="true" />
-          <span style={{ fontSize: 13, fontWeight: 800, color: t.text }}>Moderator</span>
+          <span className="np-admin-brand-label" style={{ fontSize: 13, fontWeight: 800, color: t.text }}>Moderator</span>
         </div>
-        <div style={{ padding: "0 8px", marginBottom: 16, fontSize: 11, color: t.textMuted }}>{user?.email}</div>
+        <div className="np-admin-user-label" style={{ padding: "0 8px", marginBottom: 16, fontSize: 11, color: t.textMuted }}>{user?.email}</div>
         <nav style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minHeight: 0, overflowY: "auto", overscrollBehavior: "contain" }}>
           {TABS.map(({ key, label, Icon }) => (
-            <button key={key} onClick={() => setTab(key)}
+            <button key={key} className="np-admin-nav-item" aria-label={label} aria-pressed={tab === key} title={label} onClick={() => { setTab(key); setMobileNavOpen(false); }}
               style={{ display: "flex", alignItems: "center", gap: 9, padding: "9px 10px", borderRadius: 8, border: "none", background: tab === key ? (dark ? "#0C1B3A" : "#EFF6FF") : "none", color: tab === key ? t.primary : t.textSub, fontSize: 13, fontWeight: tab === key ? 700 : 500, cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
-              <Icon size={15} aria-hidden="true" />{label}
+              <Icon size={15} aria-hidden="true" /><span className="np-admin-nav-label">{label}</span>
             </button>
           ))}
         </nav>
-        <button onClick={handleLogout}
+        <button className="np-admin-signout" aria-label="Sign out" title="Sign out" onClick={handleLogout}
           style={{ display: "flex", alignItems: "center", gap: 9, padding: "9px 10px", borderRadius: 8, border: `1px solid ${t.borderLight}`, background: "none", color: t.textMuted, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", flexShrink: 0, marginTop: 12 }}>
-          <LogOut size={13} aria-hidden="true" />Sign out
+          <LogOut size={13} aria-hidden="true" /><span className="np-admin-nav-label">Sign out</span>
         </button>
       </aside>
       <main className="np-admin-main" style={{ flex: 1, padding: "24px 24px", minWidth: 0, marginLeft: 210 }}>
         <div style={{ marginBottom: 22 }}>
-          <h1 style={{ fontSize: 20, fontWeight: 800, color: t.text, margin: "0 0 4px 0" }}>{TABS.find(x => x.key === tab)?.label}</h1>
+          <div className="np-admin-heading-row">
+            <button className="np-admin-menu-toggle" type="button" aria-label="Open admin navigation" aria-expanded={mobileNavOpen} onClick={() => setMobileNavOpen(true)}><Menu size={19} /></button>
+            <h1 style={{ fontSize: 20, fontWeight: 800, color: t.text, margin: "0 0 4px 0" }}>{TABS.find(x => x.key === tab)?.label}</h1>
+            <button className="np-admin-public-link" type="button" onClick={() => navigate("/")}>View public site</button>
+          </div>
           <p style={{ fontSize: 13, color: t.textMuted, margin: 0 }}>
             {tab === "dashboard" && "Overview of tracked government activity and moderation load."}
             {tab === "ingestion" && "Fetch either House or both, with a safe dry-run option. No automatic PDF processing."}

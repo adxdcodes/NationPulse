@@ -8,6 +8,7 @@ visible.
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 import config
+from auth import require_user
 from db import get_conn
 from serialize import serialize_bill
 
@@ -34,6 +35,7 @@ def list_bills(
     q: str = Query(default=None, description="Free-text search across title, summary, why-it-matters"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=None, ge=1),
+    user: dict = Depends(require_user),
     conn=Depends(get_conn),
 ):
     page_size = min(page_size or config.DEFAULT_PAGE_SIZE, config.MAX_PAGE_SIZE)
@@ -58,8 +60,19 @@ def list_bills(
         from status_map import STATUS_MAP
         raw_values = [raw for raw, norm in STATUS_MAP.items() if norm == status]
         if raw_values:
-            where.append("b.status = ANY(%(raw_statuses)s)")
             params["raw_statuses"] = raw_values
+            if status == "Pending":
+                # normalize_status() deliberately treats unrecognized raw
+                # values as Pending too. Keep the SQL filter consistent with
+                # that fallback so bills remain visible under Pending.
+                params["known_raw_statuses"] = list(STATUS_MAP)
+                where.append(
+                    "(b.status = ANY(%(raw_statuses)s) "
+                    "OR b.status IS NULL "
+                    "OR b.status <> ALL(%(known_raw_statuses)s))"
+                )
+            else:
+                where.append("b.status = ANY(%(raw_statuses)s)")
         else:
             where.append("false")
     if q:
@@ -98,7 +111,7 @@ def list_bills(
 
 
 @router.get("/bills/{bill_id}")
-def get_bill(bill_id: int, conn=Depends(get_conn)):
+def get_bill(bill_id: int, user: dict = Depends(require_user), conn=Depends(get_conn)):
     with conn.cursor() as cur:
         cur.execute(f"""
             {LATEST_APPROVED_CTE}
@@ -132,7 +145,7 @@ def get_bill(bill_id: int, conn=Depends(get_conn)):
 
 
 @router.get("/topics")
-def list_topics(conn=Depends(get_conn)):
+def list_topics(user: dict = Depends(require_user), conn=Depends(get_conn)):
     with conn.cursor() as cur:
         cur.execute(f"""
             {LATEST_APPROVED_CTE}

@@ -25,8 +25,9 @@ real HTTP requests to a real running server:
 
 ```bash
 pip install -r requirements.txt
-cp .env.example .env        # edit DATABASE_URL, JWT_SECRET, CORS_ORIGINS
+From the repository root, copy `.env.example` to `.env` once, then edit DATABASE_URL, JWT_SECRET, CORS_ORIGINS there.
 psql "$DATABASE_URL" -f schema.sql    # adds users/comments/follows/mps on top of the pipeline tables
+psql "$DATABASE_URL" -f ../db/007_bill_engagement.sql  # adds per-user bill reactions and unique-reader counts
 uvicorn main:app --reload --port 8000
 ```
 

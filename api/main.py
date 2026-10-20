@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 import config
-from routers import ingestion_control, document_health, bills, mps, digest, auth_router, comments, follows, admin, processing
+from routers import ingestion_control, document_health, bills, mps, digest, auth_router, comments, follows, admin, processing, engagement
 
 configure_api_logging()
 
@@ -71,6 +71,7 @@ app.include_router(digest.router)
 app.include_router(auth_router.router)
 app.include_router(comments.router)
 app.include_router(follows.router)
+app.include_router(engagement.router)
 app.include_router(admin.router)
 app.include_router(document_health.router)
 app.include_router(processing.router)

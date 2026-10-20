@@ -31,11 +31,13 @@ class GeminiProvider(AIProvider):
     name = "gemini"
 
     def __init__(self, api_key: str = None, model: str = None, base_url: str = None):
-        self.api_key = api_key or config.GEMINI_API_KEY
+        # An explicit key remains useful for isolated callers/tests; normal
+        # pipeline requests select the next shared round-robin key per call.
+        self.api_key = api_key
         self.model = model or config.GEMINI_MODEL
         self.base_url = base_url or config.GEMINI_BASE_URL
-        if not self.api_key:
-            raise ProviderError("GEMINI_API_KEY is not set.")
+        if not self.api_key and not config.GEMINI_API_KEYS:
+            raise ProviderError("No Gemini API key is set (GEMINI_API_KEY_1/_2/_3 or GEMINI_API_KEY).")
 
     def _call(self, system_prompt: str, user_prompt: str, schema: dict) -> tuple[dict, dict]:
         body = {
@@ -48,12 +50,15 @@ class GeminiProvider(AIProvider):
             },
         }
         url = f"{self.base_url}/v1beta/models/{self.model}:generateContent"
+        api_key = self.api_key or config.next_gemini_api_key()
 
         try:
-            resp = httpx.post(url, json=body, params={"key": self.api_key},
+            resp = httpx.post(url, json=body, params={"key": api_key},
                                timeout=config.REQUEST_TIMEOUT_SECONDS)
         except httpx.HTTPError as e:
-            raise ProviderError(f"Network error calling Gemini: {e}")
+            # HTTP client errors may include the request URL, whose query has the API key.
+            detail = str(e).replace(api_key, "[redacted]")
+            raise ProviderError(f"Network error calling Gemini: {detail}")
 
         if resp.status_code != 200:
             raise ProviderError(f"Gemini API returned {resp.status_code}: {resp.text[:500]}")

@@ -126,11 +126,10 @@ keeping even with the shared venv.
 make configure DB_URL="postgresql://postgres.xxxx:PASSWORD@aws-0-ap-south-1.pooler.supabase.com:5432/postgres"
 ```
 
-Then manually add (not shared secrets the same way a DB URL is, so the
-script won't touch these):
-- `services/ai-pipeline/.env` → at least one of `ANTHROPIC_API_KEY` /
-  `OPENAI_API_KEY` / `GEMINI_API_KEY` / `OPENROUTER_API_KEY`
-- `api/.env` → `JWT_SECRET` (any long random string for local dev)
+With the current unified configuration, keep service credentials in the single
+repository-root `.env` file. Set `GEMINI_API_KEY` and a strong `JWT_SECRET`
+there; do not create per-service `.env` files. The helper script validates the
+root file but does not write or copy secrets.
 
 `pdf-pipeline`'s OCR fallback needs system packages too, only if you want
 OCR for scanned PDFs (`brew install tesseract poppler` on macOS,

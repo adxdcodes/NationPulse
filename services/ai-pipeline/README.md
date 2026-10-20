@@ -23,17 +23,23 @@ One interface (`providers/base.py`) and one implementation:
 | ---------- | ------------------------------ | --------------------------------------------------------------------------------- |
 | **Gemini** | `providers/gemini_provider.py` | `responseSchema` (auto-converted to the restricted OpenAPI subset Gemini accepts) |
 
-Gemini is selected by default. Set `GEMINI_API_KEY` in `.env`. The pipeline
-tries `GEMINI_MODEL` first, then `GEMINI_MODEL_2`, then `GEMINI_MODEL_3` if a
-model exhausts its configured retries. The successful model is stored in
-`bill_ai_content.model_version`.
+Gemini is selected by default. Set `GEMINI_API_KEY_1`, `GEMINI_API_KEY_2`, and
+`GEMINI_API_KEY_3` in the repository-root `.env`. Each Gemini API request uses
+the next configured numbered key in order (1 → 2 → 3 → 1), including model
+discovery requests. If no numbered keys are configured, `GEMINI_API_KEY` remains
+available as a single-key fallback. The pipeline tries `GEMINI_MODEL` first,
+then `GEMINI_MODEL_2`, then `GEMINI_MODEL_3` if a model exhausts its configured
+retries. The successful model is stored in `bill_ai_content.model_version`.
 
 ## Setup
 
 ```bash
 pip install -r requirements.txt
-cp .env.example .env
-# fill in DATABASE_URL and whichever API key(s) you plan to use
+```
+
+From the repository root, copy `.env.example` to `.env` and set the three numbered Gemini keys.
+
+```bash
 psql "$DATABASE_URL" -f schema.sql       # extends bill_ai_content; safe to
                                           # run even if the base tables
                                           # already exist from the PDF pipeline
@@ -42,7 +48,7 @@ psql "$DATABASE_URL" -f schema.sql       # extends bill_ai_content; safe to
 ## Running
 
 ```bash
-# summarize up to 20 bills with the default provider (AI_PROVIDER in .env)
+# summarize up to 20 bills with the default provider (AI_PROVIDER in the root .env)
 python pipeline.py
 
 # pick the Gemini model explicitly

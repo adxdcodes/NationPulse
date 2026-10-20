@@ -1,0 +1,6 @@
+.env
+venv/
+__pycache__/
+*.pyc
+outputs/plots/
+outputs/qa_eval_results.csv

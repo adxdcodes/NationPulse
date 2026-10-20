@@ -21,14 +21,14 @@ def discover():
     """Intersect documented free candidates with models.list generateContent support.
     Raises if the list endpoint fails: never silently guess which models are available.
     """
-    if not config.GEMINI_API_KEY:
-        raise RuntimeError("GEMINI_API_KEY missing")
+    if not config.GEMINI_API_KEYS:
+        raise RuntimeError("No Gemini API key configured (GEMINI_API_KEY_1/_2/_3 or GEMINI_API_KEY).")
     url = config.GEMINI_BASE_URL.rstrip("/") + "/v1beta/models"
     available = set()
     page_token = None
     with httpx.Client(timeout=20) as client:
         while True:
-            params = {"key": config.GEMINI_API_KEY, "pageSize": 1000}
+            params = {"key": config.next_gemini_api_key(), "pageSize": 1000}
             if page_token:
                 params["pageToken"] = page_token
             response = client.get(url, params=params)

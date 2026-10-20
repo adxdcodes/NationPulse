@@ -8,9 +8,20 @@ from status_map import normalize_status, compute_stage, STAGES
 def serialize_bill(row: dict, comment_count: int = None) -> dict:
     stage = compute_stage(row)
     key_changes = row.get("key_changes") or []
+    bill_number = str(row.get("bill_number") or "").strip()
+    house = row.get("introduced_house")
+    qa_prefix = {"Lok Sabha": "LS", "Rajya Sabha": "RS"}.get(house)
+    qa_bill_id = None
+    if qa_prefix and bill_number:
+        qa_parts = [qa_prefix]
+        if row.get("bill_year") is not None:
+            qa_parts.append(str(row["bill_year"]))
+        qa_parts.append(bill_number)
+        qa_bill_id = "-".join(qa_parts)
 
     out = {
         "id": row["bill_id"] if "bill_id" in row else row["id"],
+        "qaBillId": qa_bill_id,
         # Hardcoded for now — every ingested record today is a Parliament
         # bill. See README "Suggested changes" for what adding Executive/
         # Budget/Judiciary sources would take.

@@ -43,7 +43,7 @@ Two signals, not one:
 
 ```bash
 pip install -r requirements.txt
-cp .env.example .env        # edit DATABASE_URL, PDF_PIPELINE_DIR, AI_PIPELINE_DIR
+From the repository root, copy `.env.example` to `.env` once, then edit DATABASE_URL, PDF_PIPELINE_DIR, AI_PIPELINE_DIR there.
 psql "$DATABASE_URL" -f schema.sql
 ```
 

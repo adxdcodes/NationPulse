@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowRight, ExternalLink, FileText, X } from "lucide-react";
 import { api } from "../api/client.js";
 import OfficialSourcesModal from "./OfficialSourcesModal.jsx";
+import { LoadingPanel } from "./LoadingUI.jsx";
 
 export default function PublishedBillModal({ id, onClose, t, dark }) {
   const navigate = useNavigate();
@@ -30,7 +31,7 @@ export default function PublishedBillModal({ id, onClose, t, dark }) {
   return <div onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }} style={{position:"fixed",inset:0,zIndex:1000,background:"rgba(3,9,22,.78)",backdropFilter:"blur(5px)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
     <section role="dialog" aria-modal="true" aria-label={bill?.title || "Published bill"} style={{width:"min(680px,100%)",maxHeight:"min(85dvh,850px)",overflowY:"auto",background:t.surface,border:`1px solid ${t.borderLight}`,boxShadow:"0 24px 80px #0008",borderRadius:20,padding:"clamp(20px,4vw,32px)",color:t.text}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,marginBottom:18}}><span style={{color:t.primary,fontSize:12,fontWeight:800,letterSpacing:1}}>PUBLISHED BILL</span><button type="button" aria-label="Close preview" onClick={onClose} style={{...button,padding:8}}><X size={19}/></button></div>
-      {!bill && !error && <div role="status" style={{padding:"42px 0",textAlign:"center",color:t.textMuted}}>Loading published bill…</div>}
+      {!bill && !error && <LoadingPanel label="Loading published bill" lines={4} />}
       {error && <div role="alert" style={{color:t.danger,padding:"25px 0"}}>{error}</div>}
       {bill && <>
         <div style={{display:"flex",gap:9,flexWrap:"wrap",fontSize:12,color:t.textMuted,marginBottom:12}}><span>{bill.status}</span><span>·</span><span>{bill.topic || bill.domain}</span></div>

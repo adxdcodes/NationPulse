@@ -52,8 +52,9 @@ def get_current_user(authorization: str = Header(default=None), conn=Depends(get
     if user_id is None:
         return None
     with conn.cursor() as cur:
-        cur.execute("SELECT id, name, email, is_admin, created_at FROM users WHERE id = %s", (user_id,))
+        cur.execute("SELECT id, name, email, is_admin, avatar_url, created_at FROM users WHERE id = %s", (user_id,))
         return cur.fetchone()
+
 
 
 def require_user(user: Optional[dict] = Depends(get_current_user)) -> dict:

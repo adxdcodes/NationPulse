@@ -1,6 +1,6 @@
 # NationPulse frontend
 
-## What's real now vs. still mock
+## Current frontend status
 
 - **Auth is real.** Signup/login hit the actual API (`src/api/client.js` →
   `api/routers/auth_router.py`), issuing a real JWT stored in
@@ -12,13 +12,16 @@
   `api/README.md` — `UPDATE users SET is_admin = true WHERE email = '...'`).
   `AdminLogin.jsx` still exists only as a redirect, in case anything had
   the old `/admin/login` URL bookmarked.
-- **The public pages (Home, event detail, Topics, MPs, Digest, search)
-  are still on `src/data/mockData.js`**, unchanged from before. That's a
-  deliberate scope boundary for this pass, not an oversight — wiring
-  those to real bills is the natural next piece of work. Comments and
-  follows on those mock pages still use the `localStorage`-based
-  simulation in `src/data/socialStore.js`, now just backed by a real
-  signed-in user identity instead of a fully-fake one.
+- **Public discovery uses the API.** The public landing page is `/`; the
+  authenticated bill feed is `/bills`; bill details are `/bills/:id`.
+  The prior `/event/:id` path redirects to the corresponding bill detail.
+  The feed, topics, bill details, MPs and digest load through
+  `src/api/client.js`. Follow state in `src/data/socialStore.js` remains
+  local to the browser.
+- **Theme:** Cherry Blossom is the default light palette. First-time
+  visitors inherit the operating-system color preference; a saved theme
+  choice takes precedence. Design tokens live in
+  `src/context/ThemeContext.jsx` and shared CSS in `src/index.css`.
 
 ## New: Bills & Processing (admin)
 
@@ -73,14 +76,13 @@ job. `src/pages/admin/AdminLayout.jsx`:
 
 ```bash
 npm install
-cp .env.example .env    # point VITE_API_URL at your running api/ service
+Configure VITE_API_URL and other VITE_* values in the single root `.env` (Vite loads it from the repository root).
 npm run dev
 ```
 
-The API needs to actually be running (`uvicorn main:app --reload` in
-`api/`, per the root `RUNBOOK.md`) for anything past the public mock
-pages to work — sign-up, login, and the entire admin console all make
-real network calls now.
+The API needs to be running (`uvicorn main:app --reload` in `api/`, per
+the root `RUNBOOK.md`) for bill previews, the authenticated feed, login,
+search, topics, detail pages, digest, and admin features to load.
 
 ## Files that changed from the previous delivery
 

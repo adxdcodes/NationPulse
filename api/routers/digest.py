@@ -6,6 +6,7 @@ that changed this week" stops being a good enough digest on its own.
 """
 from fastapi import APIRouter, Depends, Query
 
+from auth import require_user
 from db import get_conn
 from serialize import serialize_bill
 
@@ -13,7 +14,7 @@ router = APIRouter(tags=["digest"])
 
 
 @router.get("/digest")
-def get_digest(weeks: int = Query(default=6, ge=1, le=26), conn=Depends(get_conn)):
+def get_digest(weeks: int = Query(default=6, ge=1, le=26), user: dict = Depends(require_user), conn=Depends(get_conn)):
     with conn.cursor() as cur:
         cur.execute("""
             WITH approved_content AS (

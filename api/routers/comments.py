@@ -8,7 +8,7 @@ router = APIRouter(tags=["comments"])
 
 
 @router.get("/bills/{bill_id}/comments")
-def list_comments(bill_id: int, conn=Depends(get_conn)):
+def list_comments(bill_id: int, user: dict = Depends(require_user), conn=Depends(get_conn)):
     with conn.cursor() as cur:
         cur.execute("""
             SELECT c.id, c.body, c.created_at, u.id AS author_id, u.name AS author_name

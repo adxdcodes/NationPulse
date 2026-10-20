@@ -266,6 +266,23 @@ CREATE TABLE public.follows (
 );
 CREATE INDEX follows_user_idx ON public.follows (user_id,kind);
 
+CREATE TABLE public.bill_reactions (
+ bill_id bigint NOT NULL REFERENCES public.bills(id) ON DELETE CASCADE,
+ user_id bigint NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+ reaction text NOT NULL CHECK (reaction IN ('like','dislike')),
+ created_at timestamptz NOT NULL DEFAULT now(),
+ updated_at timestamptz NOT NULL DEFAULT now(),
+ PRIMARY KEY (bill_id,user_id)
+);
+CREATE INDEX bill_reactions_bill_idx ON public.bill_reactions (bill_id,reaction);
+CREATE TABLE public.bill_views (
+ bill_id bigint NOT NULL REFERENCES public.bills(id) ON DELETE CASCADE,
+ user_id bigint NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+ viewed_at timestamptz NOT NULL DEFAULT now(),
+ PRIMARY KEY (bill_id,user_id)
+);
+CREATE INDEX bill_views_bill_idx ON public.bill_views (bill_id);
+
 -- Operational view: never conflate document URL health with extraction state.
 CREATE VIEW public.bill_document_overview AS
 SELECT b.id AS bill_id, b.bill_name,

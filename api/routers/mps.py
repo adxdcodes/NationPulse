@@ -5,6 +5,7 @@ list, not mock data, so the frontend can tell the difference between
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from auth import require_user
 from db import get_conn
 
 router = APIRouter(tags=["mps"])
@@ -24,7 +25,7 @@ def _serialize_mp(row: dict) -> dict:
 
 
 @router.get("/mps")
-def list_mps(q: str = Query(default=None), house: str = Query(default=None), conn=Depends(get_conn)):
+def list_mps(q: str = Query(default=None), house: str = Query(default=None), user: dict = Depends(require_user), conn=Depends(get_conn)):
     where, params = ["true"], {}
     if q:
         where.append("(name ILIKE %(q)s OR state ILIKE %(q)s OR constituency ILIKE %(q)s)")
@@ -40,7 +41,7 @@ def list_mps(q: str = Query(default=None), house: str = Query(default=None), con
 
 
 @router.get("/mps/{mp_id}")
-def get_mp(mp_id: int, conn=Depends(get_conn)):
+def get_mp(mp_id: int, user: dict = Depends(require_user), conn=Depends(get_conn)):
     with conn.cursor() as cur:
         cur.execute("SELECT * FROM mps WHERE id = %s", (mp_id,))
         row = cur.fetchone()

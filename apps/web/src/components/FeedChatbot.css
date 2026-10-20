@@ -9,3 +9,176 @@
 .np-chat-root .np-chat-panel{border-radius:24px;box-shadow:0 24px 85px rgba(12,31,70,.26)}
 .np-chat-root .np-chat-input-wrap{border-radius:17px}
 .np-chat-root .np-chat-suggestions button{border-radius:13px}
+
+/* ---- RAG answers: bot bubbles, sources, feedback, typing ---- */
+.np-chat-bot{background:#fff;color:#213451;border:1px solid #e2eaf6;border-radius:14px 14px 14px 3px;align-self:flex-start;white-space:pre-wrap}
+.np-chat-bot-text{white-space:normal;line-height:1.65;overflow-wrap:anywhere}.np-chat-markdown>*:first-child{margin-top:0}.np-chat-markdown>*:last-child{margin-bottom:0}.np-chat-markdown p{margin:0 0 12px}.np-chat-markdown h2,.np-chat-markdown h3,.np-chat-markdown h4,.np-chat-markdown h5,.np-chat-markdown h6{margin:14px 0 7px;color:#1e355b;line-height:1.35;font-weight:750}.np-chat-markdown h2{font-size:15px}.np-chat-markdown h3,.np-chat-markdown h4,.np-chat-markdown h5,.np-chat-markdown h6{font-size:13px}.np-chat-markdown ul,.np-chat-markdown ol{margin:6px 0 12px;padding-left:21px}.np-chat-markdown li{margin:4px 0;padding-left:2px}.np-chat-markdown blockquote{margin:8px 0 12px;padding:2px 0 2px 11px;border-left:3px solid #8ba9f0;color:#526782}.np-chat-markdown pre{margin:8px 0 12px;padding:10px 12px;overflow:auto;border:1px solid #dce7f7;border-radius:9px;background:#f3f7fd;color:#213451;white-space:pre}.np-chat-markdown code{padding:1px 4px;border-radius:4px;background:#edf2fa;font: .92em ui-monospace,SFMono-Regular,Consolas,monospace}.np-chat-markdown pre code{padding:0;background:transparent}.np-chat-markdown a{color:#2455b8;text-decoration:underline;text-underline-offset:2px}.np-chat-markdown hr{margin:10px 0;border:0;border-top:1px solid #dce7f7}
+.np-chat-table-wrap{max-width:100%;overflow-x:auto;margin:8px 0 12px;border:1px solid #dce7f7;border-radius:9px}.np-chat-markdown table{width:100%;border-collapse:collapse;font-size:11px}.np-chat-markdown th,.np-chat-markdown td{padding:7px 9px;border-bottom:1px solid #e5ecf6;text-align:left;vertical-align:top}.np-chat-markdown th{background:#f3f7fd;color:#1e355b;font-weight:750}.np-chat-markdown tr:last-child td{border-bottom:0}
+.np-chat-error{background:#fff4f4;border-color:#f3c9c9;color:#9b2c2c}
+.np-chat-sources{margin-top:10px;font-size:11px;white-space:normal}
+.np-chat-sources summary{cursor:pointer;color:#3164d5;font-weight:700;display:flex;align-items:center;gap:5px;user-select:none}
+.np-chat-sources summary:hover{color:#1a46aa}
+.np-chat-sources-list{margin-top:8px;display:flex;flex-direction:column;gap:6px}
+.np-chat-source-item{padding:7px 10px;background:#f3f7fd;border:1px solid #dce7f7;border-radius:8px;display:flex;align-items:center;gap:8px}
+.np-chat-source-badge{font-size:9.5px;font-weight:700;background:#315fd0;color:#fff;padding:2px 6px;border-radius:5px;letter-spacing:0.3px;flex-shrink:0}
+.np-chat-source-title{font-size:11px;font-weight:600;color:#1e355b;line-height:1.4}
+.np-chat-feedback{display:flex;gap:6px;margin-top:8px}
+.np-chat-feedback button{border:1px solid #dbe4f3;background:transparent;color:#8290a5;border-radius:7px;padding:4px 7px;cursor:pointer;display:grid;place-items:center}
+.np-chat-feedback button:hover:not(:disabled){background:#edf4ff}
+.np-chat-feedback button.on{background:#315fd0;border-color:#315fd0;color:#fff}
+.np-chat-feedback button:disabled:not(.on){opacity:.4;cursor:default}
+.np-chat-typing{display:flex;gap:5px;padding:14px 16px}
+.np-chat-typing span{width:6px;height:6px;border-radius:50%;background:#8ba9f0;animation:np-chat-dot 1.2s infinite ease-in-out}
+.np-chat-typing span:nth-child(2){animation-delay:.2s}.np-chat-typing span:nth-child(3){animation-delay:.4s}
+@keyframes np-chat-dot{0%,80%,100%{opacity:.25;transform:scale(.8)}40%{opacity:1;transform:scale(1)}}
+.np-chat-dark .np-chat-bot{background:#1d2c47;border-color:#344b6d;color:#e6eeff}
+.np-chat-dark .np-chat-markdown h2,.np-chat-dark .np-chat-markdown h3,.np-chat-dark .np-chat-markdown h4,.np-chat-dark .np-chat-markdown h5,.np-chat-dark .np-chat-markdown h6{color:#e6eeff}.np-chat-dark .np-chat-markdown blockquote{border-color:#759ef1;color:#adbed7}.np-chat-dark .np-chat-markdown pre{background:#16243c;border-color:#344b6d;color:#e6eeff}.np-chat-dark .np-chat-markdown code{background:#29405f;color:#f3f6ff}.np-chat-dark .np-chat-markdown pre code{background:transparent}.np-chat-dark .np-chat-markdown a{color:#a9c4ff}.np-chat-dark .np-chat-markdown hr{border-color:#344b6d}
+.np-chat-dark .np-chat-table-wrap{border-color:#344b6d}.np-chat-dark .np-chat-markdown th,.np-chat-dark .np-chat-markdown td{border-color:#344b6d}.np-chat-dark .np-chat-markdown th{background:#16243c;color:#e6eeff}
+.np-chat-dark .np-chat-error{background:#3a1f26;border-color:#6b3340;color:#ffb4b4}
+.np-chat-dark .np-chat-source-item{background:#16243c;border-color:#2a3f61}
+.np-chat-dark .np-chat-source-title{color:#d6e4fa}
+.np-chat-dark .np-chat-feedback button{border-color:#344b6d;color:#adbed7}
+.np-chat-heading small{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(max-width:480px){.np-chat-heading small{max-width:calc(100vw - 180px)}}
+
+/* Match NationPulse's Cherry Blossom theme (the widget is portaled to body). */
+.np-chat-root {
+  --np-chat-ink: #2B1620;
+  --np-chat-sub: #5C3A47;
+  --np-chat-muted: #7A5663;
+  --np-chat-brand: #B64F70;
+  --np-chat-brand-strong: #963D5C;
+  --np-chat-soft: #EFCFE3;
+  --np-chat-paper: #FFF8FC;
+  --np-chat-panel: #FFFFFF;
+  --np-chat-line: #EBD3D6;
+  --np-chat-aqua: #B3DEE2;
+  --np-chat-sage: #EAF2D7;
+  color: var(--np-chat-ink);
+}
+.np-chat-root .np-chat-launcher {
+  background: linear-gradient(120deg, var(--np-chat-brand-strong), #E27396);
+  box-shadow: 0 12px 35px rgba(150,61,92,.28);
+}
+.np-chat-root .np-chat-launcher:hover { box-shadow: 0 17px 38px rgba(150,61,92,.36); }
+.np-chat-root .np-chat-panel {
+  border-color: var(--np-chat-line);
+  background: var(--np-chat-panel);
+  box-shadow: 0 24px 80px rgba(91,42,59,.24);
+}
+.np-chat-root .np-chat-header {
+  background: linear-gradient(110deg, var(--np-chat-brand-strong), var(--np-chat-brand));
+  color: #FFFFFF;
+}
+.np-chat-root .np-chat-avatar { background: rgba(255,255,255,.18); }
+.np-chat-root .np-chat-heading small { color: #FCE5EC; }
+.np-chat-root .np-chat-icon-btn { color: #FFFFFF; }
+.np-chat-root .np-chat-icon-btn:hover { background: rgba(255,255,255,.16); }
+.np-chat-root .np-chat-body {
+  color: var(--np-chat-ink);
+  background: radial-gradient(circle at top right, var(--np-chat-soft), transparent 55%), var(--np-chat-paper);
+}
+.np-chat-root .np-chat-welcome-icon {
+  color: var(--np-chat-brand-strong);
+  background: #FCE5EC;
+  box-shadow: 0 8px 24px rgba(182,79,112,.12);
+}
+.np-chat-root .np-chat-welcome h3 { color: var(--np-chat-ink); }
+.np-chat-root .np-chat-welcome p { color: var(--np-chat-sub); }
+.np-chat-root .np-chat-suggestions > span,
+.np-chat-root .np-chat-disclaimer { color: var(--np-chat-muted); }
+.np-chat-root .np-chat-suggestions button {
+  border-color: var(--np-chat-line);
+  background: var(--np-chat-panel);
+  color: var(--np-chat-sub);
+}
+.np-chat-root .np-chat-suggestions button:hover {
+  background: #FCE5EC;
+  border-color: #EA9AB2;
+}
+.np-chat-root .np-chat-user { background: var(--np-chat-brand); color: #FFFFFF; }
+.np-chat-root .np-chat-bot,
+.np-chat-root .np-chat-preview-note {
+  background: var(--np-chat-panel);
+  border-color: var(--np-chat-line);
+  color: var(--np-chat-sub);
+}
+.np-chat-root .np-chat-preview-note svg { color: var(--np-chat-brand); }
+.np-chat-root .np-chat-compose { background: var(--np-chat-panel); border-color: var(--np-chat-line); }
+.np-chat-root .np-chat-input-wrap { border-color: var(--np-chat-line); }
+.np-chat-root .np-chat-input-wrap:focus-within {
+  border-color: var(--np-chat-brand) !important;
+  box-shadow: 0 0 0 3px rgba(182,79,112,.16) !important;
+}
+.np-chat-root .np-chat-input-wrap input { color: var(--np-chat-ink); }
+.np-chat-root .np-chat-input-wrap > button { background: var(--np-chat-brand); color: #FFFFFF; }
+.np-chat-root .np-chat-input-wrap > button:disabled { background: var(--np-chat-soft); color: var(--np-chat-muted); }
+.np-chat-root .np-chat-markdown h2,
+.np-chat-root .np-chat-markdown h3,
+.np-chat-root .np-chat-markdown h4,
+.np-chat-root .np-chat-markdown h5,
+.np-chat-root .np-chat-markdown h6 { color: var(--np-chat-ink); }
+.np-chat-root .np-chat-markdown blockquote { border-color: #E27396; color: var(--np-chat-sub); }
+.np-chat-root .np-chat-markdown pre { background: var(--np-chat-paper); border-color: var(--np-chat-line); color: var(--np-chat-ink); }
+.np-chat-root .np-chat-markdown code { background: #FCE5EC; color: var(--np-chat-brand-strong); }
+.np-chat-root .np-chat-markdown a,
+.np-chat-root .np-chat-sources summary { color: var(--np-chat-brand-strong); }
+.np-chat-root .np-chat-markdown hr { border-color: var(--np-chat-line); }
+.np-chat-root .np-chat-table-wrap { border-color: var(--np-chat-line); }
+.np-chat-root .np-chat-markdown th,
+.np-chat-root .np-chat-markdown td { border-color: var(--np-chat-line); }
+.np-chat-root .np-chat-markdown th { background: #FCE5EC; color: var(--np-chat-ink); }
+.np-chat-root .np-chat-error { background: #FCE5EC; border-color: #EA9AB2; color: #7D2846; }
+.np-chat-root .np-chat-source-item { background: var(--np-chat-paper); border-color: var(--np-chat-line); }
+.np-chat-root .np-chat-source-badge { background: var(--np-chat-brand); color: #FFFFFF; }
+.np-chat-root .np-chat-source-title { color: var(--np-chat-sub); }
+.np-chat-root .np-chat-feedback button { border-color: var(--np-chat-line); color: var(--np-chat-muted); }
+.np-chat-root .np-chat-feedback button:hover:not(:disabled) { background: #FCE5EC; }
+.np-chat-root .np-chat-feedback button.on { background: var(--np-chat-brand); border-color: var(--np-chat-brand); color: #FFFFFF; }
+.np-chat-root .np-chat-typing span { background: #E27396; }
+
+.np-chat-root.np-chat-dark {
+  --np-chat-ink: #FDEBEF;
+  --np-chat-sub: #E8CBD4;
+  --np-chat-muted: #C6A5B2;
+  --np-chat-brand: #EA9AB2;
+  --np-chat-brand-strong: #E27396;
+  --np-chat-soft: #38232D;
+  --np-chat-paper: #1F1218;
+  --np-chat-panel: #2B1A22;
+  --np-chat-line: #503340;
+}
+.np-chat-root.np-chat-dark .np-chat-header { background: linear-gradient(110deg, #2B1A22, #503340); }
+.np-chat-root.np-chat-dark .np-chat-heading small { color: #F3CBD7; }
+.np-chat-root.np-chat-dark .np-chat-welcome-icon { background: #503340; color: #EA9AB2; }
+.np-chat-root.np-chat-dark .np-chat-suggestions button { background: #38232D; border-color: #503340; color: #E8CBD4; }
+.np-chat-root.np-chat-dark .np-chat-suggestions button:hover { background: #503340; border-color: #EA9AB2; }
+.np-chat-root.np-chat-dark .np-chat-input-wrap:focus-within { box-shadow: 0 0 0 3px rgba(234,154,178,.2) !important; }
+.np-chat-root.np-chat-dark .np-chat-input-wrap input { color: #FDEBEF; }
+.np-chat-root.np-chat-dark .np-chat-input-wrap > button:disabled { background: #503340; color: #C6A5B2; }
+.np-chat-root.np-chat-dark .np-chat-markdown code { background: #503340; color: #FDEBEF; }
+.np-chat-root.np-chat-dark .np-chat-markdown th { background: #38232D; color: #FDEBEF; }
+.np-chat-root.np-chat-dark .np-chat-error { background: #452832; border-color: #EA9AB2; color: #FDEBEF; }
+.np-chat-root.np-chat-dark .np-chat-source-item { background: #1F1218; border-color: #503340; }
+.np-chat-root.np-chat-dark .np-chat-source-title { color: #E8CBD4; }
+
+/* Keep all chatbot content on the same palette as the site in both themes. */
+.np-chat-root .np-chat-markdown { color: var(--np-chat-sub); }
+.np-chat-root .np-chat-markdown strong { color: var(--np-chat-ink); }
+.np-chat-root .np-chat-markdown ul::marker,
+.np-chat-root .np-chat-markdown ol::marker { color: var(--np-chat-brand); }
+.np-chat-root .np-chat-input-wrap input::placeholder { color: var(--np-chat-muted); opacity: .8; }
+.np-chat-root .np-chat-panel,
+.np-chat-root .np-chat-body,
+.np-chat-root .np-chat-compose,
+.np-chat-root .np-chat-input-wrap,
+.np-chat-root .np-chat-suggestions button,
+.np-chat-root .np-chat-bot,
+.np-chat-root .np-chat-preview-note,
+.np-chat-root .np-chat-source-item,
+.np-chat-root .np-chat-feedback button {
+  transition: background-color .2s ease, border-color .2s ease, color .2s ease,
+    box-shadow .2s ease;
+}
+.np-chat-root.np-chat-dark .np-chat-markdown { color: var(--np-chat-sub); }
+.np-chat-root.np-chat-dark .np-chat-input-wrap input::placeholder { color: var(--np-chat-muted); }

@@ -5,6 +5,8 @@
  */
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
+const QA_BASE_URL = import.meta.env.VITE_QA_API_URL || "http://localhost:8001";
+
 class ApiError extends Error {
   constructor(status, detail) {
     super(typeof detail === "string" ? detail : (detail ? JSON.stringify(detail) : `Request failed with status ${status}`));
@@ -12,35 +14,55 @@ class ApiError extends Error {
   }
 }
 
-async function request(path, { method = "GET", token, body, params } = {}) {
-  let url = `${BASE_URL}${path}`;
+function getStoredToken() {
+  try {
+    return localStorage.getItem("np-token");
+  } catch {
+    return null;
+  }
+}
+
+async function request(path, { method = "GET", token, body, params, base = BASE_URL } = {}) {
+  let url = `${base}${path}`;
   if (params) {
     const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v != null && v !== ""));
     if ([...qs].length) url += `?${qs}`;
   }
   const headers = { "Content-Type": "application/json" };
-  if (token) headers.Authorization = `Bearer ${token}`;
+  const authToken = token !== undefined ? token : getStoredToken();
+  if (authToken) headers.Authorization = `Bearer ${authToken}`;
 
   const res = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined });
   const isJson = res.headers.get("content-type")?.includes("application/json");
   const data = isJson ? await res.json().catch(() => null) : null;
 
-  if (!res.ok) throw new ApiError(res.status, data?.detail);
+  if (!res.ok) {
+    if (res.status === 401 && !path.startsWith("/auth/login") && !path.startsWith("/auth/signup") && !path.startsWith("/auth/google")) {
+      window.dispatchEvent(new CustomEvent("np-unauthorized"));
+    }
+    throw new ApiError(res.status, data?.detail);
+  }
   return data;
 }
 
 export const api = {
-  checkDocumentLink: (token, id) => request(`/admin/documents/${id}/check-link`, {method:"POST",token}),
-  checkBillLinks: (token,id) => request(`/admin/bills/${id}/check-links`, {method:"POST",token}),
-  checkAllDocumentLinks: (token) => request("/admin/documents/check-all-links", {method:"POST",token}),
-  allDocumentLinksStatus: (token) => request("/admin/documents/check-all-links/status", {token}),
-  cancelAllDocumentLinks: (token) => request("/admin/documents/check-all-links/cancel", {method:"POST",token}),
+  // --- Pulse AI: RAG Q&A service (nationpulse-qa, separate backend) ---
+  askQuestion: (question, billId, billTitle) => request("/api/bills/qa", { method: "POST", base: QA_BASE_URL, body: { question, bill_id: billId || null, bill_title: billTitle || null } }),
+  qaFeedback: (interactionId, rating) => request(`/api/bills/qa/${interactionId}/feedback`, { method: "POST", base: QA_BASE_URL, body: { rating } }),
+  qaHealth: () => request("/api/bills/qa/health", { base: QA_BASE_URL }),
+  checkDocumentLink: (token, id) => request(`/admin/documents/${id}/check-link`, { method: "POST", token }),
+  checkBillLinks: (token, id) => request(`/admin/bills/${id}/check-links`, { method: "POST", token }),
+  checkAllDocumentLinks: (token) => request("/admin/documents/check-all-links", { method: "POST", token }),
+  allDocumentLinksStatus: (token) => request("/admin/documents/check-all-links/status", { token }),
+  cancelAllDocumentLinks: (token) => request("/admin/documents/check-all-links/cancel", { method: "POST", token }),
   // --- auth ---
-  signup: (name, email, password) => request("/auth/signup", { method: "POST", body: { name, email, password } }),
-  login: (email, password) => request("/auth/login", { method: "POST", body: { email, password } }),
+  signup: (name, email, password) => request("/auth/signup", { method: "POST", token: null, body: { name, email, password } }),
+  login: (email, password) => request("/auth/login", { method: "POST", token: null, body: { email, password } }),
+  googleLogin: (credential) => request("/auth/google", { method: "POST", token: null, body: { credential } }),
   me: (token) => request("/auth/me", { token }),
 
-  // --- public ---
+
+  // --- authenticated platform endpoints ---
   listBills: (params) => request("/bills", { params }),
   getBill: (id) => request(`/bills/${id}`),
   listTopics: () => request("/topics"),
@@ -50,6 +72,8 @@ export const api = {
 
   // --- comments / follows (require token) ---
   listComments: (billId) => request(`/bills/${billId}/comments`),
+  recordBillView: (billId) => request(`/bills/${billId}/view`, { method: "POST" }),
+  reactToBill: (billId, reaction) => request(`/bills/${billId}/reaction`, { method: "POST", body: { reaction } }),
   postComment: (token, billId, body) => request(`/bills/${billId}/comments`, { method: "POST", token, body: { body } }),
   deleteComment: (token, commentId) => request(`/comments/${commentId}`, { method: "DELETE", token }),
   myFollows: (token) => request("/me/follows", { token }),

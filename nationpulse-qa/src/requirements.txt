@@ -1,0 +1,8 @@
+pandas
+pyyaml
+supabase
+sentence-transformers
+numpy
+tqdm
+pdfplumber
+google-generativeai

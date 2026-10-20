@@ -1,6 +1,6 @@
 """Request-body schemas. Response shapes are built as plain dicts in each
 router (see README for why) so these only cover incoming data."""
-from typing import Optional
+from typing import Literal, Optional
 from pydantic import BaseModel, EmailStr, Field
 
 
@@ -15,8 +15,17 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class GoogleLoginRequest(BaseModel):
+    credential: str
+
+
+
 class CommentCreate(BaseModel):
     body: str = Field(min_length=1, max_length=2000)
+
+
+class BillReactionCreate(BaseModel):
+    reaction: Literal["like", "dislike"]
 
 
 class FollowCreate(BaseModel):

@@ -6,10 +6,14 @@ CREATE TABLE IF NOT EXISTS users (
   id             BIGSERIAL PRIMARY KEY,
   name           TEXT NOT NULL,
   email          TEXT NOT NULL UNIQUE,
-  password_hash  TEXT NOT NULL,
+  password_hash  TEXT,
+  google_id      TEXT UNIQUE,
+  avatar_url     TEXT,
   is_admin       BOOLEAN NOT NULL DEFAULT false,
-  created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
 
 CREATE TABLE IF NOT EXISTS comments (
   id          BIGSERIAL PRIMARY KEY,
@@ -29,6 +33,24 @@ CREATE TABLE IF NOT EXISTS follows (
   UNIQUE (user_id, kind, target_id)
 );
 CREATE INDEX IF NOT EXISTS idx_follows_user ON follows(user_id);
+
+CREATE TABLE IF NOT EXISTS bill_reactions (
+  bill_id       BIGINT NOT NULL REFERENCES bills(id) ON DELETE CASCADE,
+  user_id       BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  reaction      TEXT NOT NULL CHECK (reaction IN ('like', 'dislike')),
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (bill_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_bill_reactions_bill ON bill_reactions(bill_id, reaction);
+
+CREATE TABLE IF NOT EXISTS bill_views (
+  bill_id       BIGINT NOT NULL REFERENCES bills(id) ON DELETE CASCADE,
+  user_id       BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  viewed_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (bill_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_bill_views_bill ON bill_views(bill_id);
 
 -- Placeholder — no MP ingestion service exists yet (see README "Suggested
 -- next steps"). Table is here so /mps and follow-an-MP are wired end to
